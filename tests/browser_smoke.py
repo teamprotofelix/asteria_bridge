@@ -365,6 +365,42 @@ def test_animated_tour(browser, url):
     page.close()
 
 
+def test_dynamic_events(browser, url):
+    page, errors = boot(browser, url, "RENDER / WEBGL 3D")
+    event_select = page.locator("#eventSelect")
+    banner = page.locator("#eventBanner")
+    expect(event_select.locator("option")).to_have_count(14)
+    expect(event_select.locator('option[value="portal"]')).to_be_disabled()
+    expect(event_select.locator('option[value="ring"]')).to_be_disabled()
+
+    event_select.select_option("eclipse")
+    page.click("#eventBtn")
+    expect(page.locator("#eventName")).to_have_text("개기일식")
+    page.click("#eventAction")
+    expect(page.locator("#eventDescription")).to_contain_text("5초 연장")
+    expect(page.locator("#eventAction")).to_be_hidden()
+    page.click("#eventDismiss")
+    expect(banner).to_be_hidden()
+
+    page.click("#randomEvent")
+    page.locator("#approach").fill("78")
+    expect(page.locator("#eventName")).to_have_text("고리 통과")
+    expect(banner).to_be_visible()
+    page.click("#randomEvent")
+    travel(page, 27, "HALO GATE", "RENDER / WEBGL 3D")
+    expect(banner).to_be_hidden()
+    expect(page.locator("#shield")).to_have_text("100%")
+    expect(event_select.locator('option[value="eclipse"]')).to_be_disabled()
+
+    event_select.select_option("portal")
+    page.click("#eventBtn")
+    expect(page.locator("#eventName")).to_have_text("차원 포탈")
+    page.click("#eventAction")
+    expect(page.locator("#eventDescription")).to_contain_text("10초")
+    assert not errors, errors
+    page.close()
+
+
 def test_fallbacks(browser, url):
     page, errors = boot(browser, url, "RENDER / CANVAS 360°", mobile=True, disable_gpu=True)
     expect(page.locator("#approach")).to_be_hidden()
@@ -508,6 +544,8 @@ def main():
                 test_expanded_sectors(browser, url)
                 test_animated_tour(browser, url)
                 print("PASS: 32 destinations, sector groups and observation tour", flush=True)
+                test_dynamic_events(browser, url)
+                print("PASS: dynamic events, automatic ring passage and response controls", flush=True)
                 test_fallbacks(browser, url)
                 test_upload_failure(browser, url)
                 print("PASS: Texture OOM on surface, bridge and destination cubemap", flush=True)

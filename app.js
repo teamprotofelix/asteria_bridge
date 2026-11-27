@@ -7,7 +7,9 @@ for (const {group, id, name, description, code} of AsteriaSectors.additions) {
   destinations.push([id, name, description, code, group]);
 }
 
-const events={meteor:['유성우','미세 유성체 흐름 감지 · 관측 보호막 작동','METEOR SHOWER'],asteroid:['소행성 통과','암석 천체가 인접 항로를 가로지릅니다.','NEAR FLYBY'],comet:['혜성 조우','청백색 이온 꼬리와 먼지 꼬리를 관측합니다.','COMET'],flare:['태양 폭풍','고에너지 입자 흐름 · 보호막 모의 부하','SOLAR STORM'],signal:['미확인 신호','원거리 공명 신호를 레이더에서 추적합니다.','SIGNAL DETECTED'],flyby:['탐사선 조우','무인 탐사선이 시야를 가로지릅니다.','PROBE CONTACT']};
+const events = AsteriaEvents.catalog;
+let eventOptionsKey = '';
+let wasInRing = false;
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, keys=new Set();
 let yaw=0,pitch=0,roll=0,zoom=1,focal=500,w=1,h=1,dpr=1,throttle=35,auto=false,cinema=false,room=true,dest=0,warp=null,loading=false,event=null,random=false,nextEvent=0,drag=null,last=performance.now(),elapsed=0,toastTimer,clockSec=-1,sound=false,audioCtx=null,audioOsc=null,audioGain=null;
 const wrap=a=>((a+180)%360+360)%360-180, clamp=(x,a,b)=>Math.max(a,Math.min(b,x)), rad=Math.PI/180;
@@ -689,16 +691,117 @@ function project(x, y, z) {
 function line(a,b,color,width){if(!a||!b)return;ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
 function effectFrame(dt,wa){ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);let v=reduced?0:throttle*.025+wa*45;for(let s of stars){let old=s.z;s.z-=dt*v;if(s.z<.3){s.z=25;s.x=(Math.random()-.5)*24;s.y=(Math.random()-.5)*24;}let p=project(s.x,s.y,s.z);if(!p||p[0]<-20||p[0]>w+20||p[1]<-20||p[1]>h+20)continue;if(wa>.03){let q=project(s.x,s.y,s.z+wa*3.5);line(p,q,`rgba(171,223,255,${s.b*wa*.85})`,clamp(3/s.z,.5,2.4));}else{ctx.fillStyle=`rgba(207,233,255,${s.b*.42})`;ctx.beginPath();ctx.arc(p[0],p[1],clamp(2/s.z,.35,1.4),0,Math.PI*2);ctx.fill();}}
 if((dest===7&&!renderer.sky.geometry)||event?.type==='asteroid'){let n=dest===7&&!renderer.sky.geometry?18:8;for(let i=0;i<n;i++){let t=elapsed*.18+i*2.73,xx=Math.sin(t)*7,yy=Math.cos(i*2.4)*2.6,zz=5+((i*2.17+elapsed*.23)%8);let p=project(xx,yy,zz);if(!p)continue;let r=clamp(focal*(.15+(i%4)*.07)/p[2],2,60),g=ctx.createRadialGradient(p[0]-r*.35,p[1]-r*.38,r*.08,p[0],p[1],r);g.addColorStop(0,'#c3aa9b');g.addColorStop(.55,'#645a55');g.addColorStop(1,'#15151b');ctx.fillStyle=g;ctx.beginPath();for(let k=0;k<9;k++){let a=k/9*Math.PI*2+elapsed*.05,rr=r*(.73+.22*Math.sin(i*3+k*7));ctx.lineTo(p[0]+Math.cos(a)*rr,p[1]+Math.sin(a)*rr);}ctx.closePath();ctx.fill();}}
-if(event){let e=event,p=(elapsed-e.start)/e.duration,fade=Math.min(1,p*5,(1-p)*5);if(!reduced&&e.type==='meteor'){for(let i=0;i<22;i++){let phase=(p*2.8+i*.137)%1,a=project(8-16*phase+i*.2,4-i*.32-3*phase,8+i%3),b=project(8-16*(phase-.08)+i*.2,4-i*.32-3*(phase-.08),8+i%3);line(a,b,`rgba(200,232,255,${fade*.75})`,1.6);}}
+if(event){let e=event,eventState=AsteriaEvents.state(e,elapsed),p=reduced?.52:eventState.progress,fade=reduced?.8:Math.min(1,p*5,(1-p)*5);if(!reduced&&e.type==='meteor'){for(let i=0;i<22;i++){let phase=(p*2.8+i*.137)%1,a=project(8-16*phase+i*.2,4-i*.32-3*phase,8+i%3),b=project(8-16*(phase-.08)+i*.2,4-i*.32-3*(phase-.08),8+i%3);line(a,b,`rgba(200,232,255,${fade*.75})`,1.6);}}
 if(e.type==='comet'||e.type==='flyby'){let a=project(-8+16*p,.85+Math.sin(p*Math.PI)*.5,6),b=project(-10+16*p,-.1,6.8);if(a){if(e.type==='comet'){line(a,b,`rgba(119,204,255,${fade*.56})`,9);line(a,b,`rgba(221,245,255,${fade*.9})`,2);let g=ctx.createRadialGradient(a[0],a[1],0,a[0],a[1],35);g.addColorStop(0,'#eefaff');g.addColorStop(1,'#95d9ff00');ctx.fillStyle=g;ctx.fillRect(a[0]-35,a[1]-35,70,70);}else{ctx.fillStyle='#90c6d5';ctx.fillRect(a[0]-9,a[1]-3,18,6);ctx.fillStyle='#3f708c';ctx.fillRect(a[0]-22,a[1]-5,11,10);ctx.fillRect(a[0]+11,a[1]-5,11,10);ctx.fillStyle='#e3faff';ctx.fillRect(a[0]-2,a[1]-2,4,4);}}}
-if(e.type==='flare'){let a=project(.6,.2,1);if(a){let r=Math.max(w,h)*.75,g=ctx.createRadialGradient(a[0],a[1],0,a[0],a[1],r);g.addColorStop(0,`rgba(255,170,65,${fade*.36})`);g.addColorStop(1,'#ff652000');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);}}
+if(e.type==='flare'){let a=project(.6,.2,1);if(a){let r=Math.max(w,h)*.75,g=ctx.createRadialGradient(a[0],a[1],0,a[0],a[1],r);g.addColorStop(0,`rgba(255,170,65,${fade*(e.responded ? .14 : .36)})`);g.addColorStop(1,'#ff652000');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);}}
 if(e.type==='signal'){let a=project(1.2,.7,3);if(a){ctx.strokeStyle=`rgba(110,255,214,${fade*.65})`;ctx.lineWidth=1.4;for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(a[0],a[1],5+((p*130+i*20)%60),0,7);ctx.stroke();}}}}
+  if (event) AsteriaEvents.draw(event, elapsed, {ctx, width: w, height: h, project, reduced});
 }
 function drawRadar(t){let r=radar;r.clearRect(0,0,160,160);r.save();r.translate(80,80);r.strokeStyle='#305166';r.lineWidth=1;for(let i=1;i<=4;i++){r.beginPath();r.arc(0,0,i*17,0,7);r.stroke();}r.beginPath();r.moveTo(-68,0);r.lineTo(68,0);r.moveTo(0,-68);r.lineTo(0,68);r.stroke();let a=t*.9;let g=r.createRadialGradient(0,0,0,0,0,68);g.addColorStop(0,'#6deeea00');g.addColorStop(1,'#6deeea15');r.fillStyle=g;r.beginPath();r.moveTo(0,0);r.arc(0,0,68,a-.65,a);r.closePath();r.fill();r.strokeStyle='#69e3df';r.beginPath();r.moveTo(0,0);r.lineTo(Math.cos(a)*68,Math.sin(a)*68);r.stroke();for(let i=0;i<5;i++){let angle=i*2.5+dest*.4-yaw*rad,dist=17+i*10;r.fillStyle=event&&i===0?'#ffbf76':'#79e2dc';r.beginPath();r.arc(Math.cos(angle)*dist,Math.sin(angle)*dist,i===0?3:1.8,0,7);r.fill();}r.fillStyle='#d8ffff';r.fillRect(-2,-2,4,4);r.restore();}
 function updateSpeed(wa=0){$('throttlePct').textContent=Math.round(throttle)+'%';$('power').textContent=Math.round(throttle)+'%';$('powerBar').style.width=throttle+'%';$('speedRead').textContent=wa>.2?(1+wa*8).toFixed(2):(throttle*.0068).toFixed(2);if(audioGain){audioGain.gain.setTargetAtTime(sound?.015+throttle*.0003+wa*.035:0,audioCtx.currentTime,.2);audioOsc.frequency.setTargetAtTime(39+throttle*.3+wa*40,audioCtx.currentTime,.2);}}
-async function engage(n=null){if(warp||loading)return;if(!ready){notify('초기 우주 에셋 준비 중입니다.');return;}setWalking(false);loading=true;updateWalkControls();stopRoute();$('warp').disabled=$('travel').disabled=$('destinationSelect').disabled=true;$('flightStatus').textContent='항로 계산 중';try{let images=n!==null&&n!==dest?await loadSky(n):null;warp={start:performance.now(),next:n,changed:false,images};$('warp').classList.add('engaged');$('warp').querySelector('b').textContent='워프 진행 중';$('flightStatus').textContent='워프 항해 중';$('modeLabel').textContent='WARP DRIVE';notify(n===null?'워프 드라이브 가동':destinations[n][1]+' 항로 설정 · 워프 개시');}catch(e){notify('목적지 이미지 로드 실패. 현재 구역 유지.');$('warp').disabled=$('travel').disabled=$('destinationSelect').disabled=false;$('flightStatus').textContent='순항 항해 중';}finally{loading=false;updateWalkControls();updateRouteControls();}}
-function endEvent(){event=null;$('eventBanner').hidden=true;$('environment').textContent='STABLE';$('shield').textContent='100%';$('shieldBar').style.width='100%';}
-function startEvent(type){if(warp||loading){notify('순항 중 우주 상황을 실행할 수 있습니다.');return;}const e=events[type];if(!e)return;if(event)endEvent();event={type,start:elapsed,duration:12};$('eventName').textContent=e[0];$('eventDescription').textContent=e[1];$('eventBanner').hidden=false;$('environment').textContent=e[2];notify(e[0]+' · 관측 상황 개시');}
+async function engage(n=null){if(warp||loading)return;if(!ready){notify('초기 우주 에셋 준비 중입니다.');return;}setWalking(false);loading=true;updateWalkControls();stopRoute();$('warp').disabled=$('travel').disabled=$('destinationSelect').disabled=true;$('flightStatus').textContent='항로 계산 중';try{let images=n!==null&&n!==dest?await loadSky(n):null;if(event)endEvent();warp={start:performance.now(),next:n,changed:false,images};$('warp').classList.add('engaged');$('warp').querySelector('b').textContent='워프 진행 중';$('flightStatus').textContent='워프 항해 중';$('modeLabel').textContent='WARP DRIVE';notify(n===null?'워프 드라이브 가동':destinations[n][1]+' 항로 설정 · 워프 개시');}catch(e){notify('목적지 이미지 로드 실패. 현재 구역 유지.');$('warp').disabled=$('travel').disabled=$('destinationSelect').disabled=false;$('flightStatus').textContent='순항 항해 중';}finally{loading=false;updateWalkControls();updateRouteControls();}}
+function eventContext() {
+  const [id, , , , group] = destinations[dest];
+  const scene = AsteriaSpace.scenes[id];
+  const deep = group === 'deep' || id === 'deep' || id === 'nebula';
+  const world = group === 'world' || ['nereid', 'selene', 'eos', 'gaia'].includes(id);
+  return {
+    id, deep, world,
+    moon: world && !!scene?.moon,
+    star: group === 'star' || id === 'solaris',
+    belt: !!scene?.belt,
+    relic: group === 'relic',
+    portal: id === 'halogate' || id === 'palimpsest',
+    ring: !!(scene && renderer.sky.geometry && AsteriaSpace.nearRing(scene, approach, orbit)),
+  };
+}
+
+function setEventHud(shield) {
+  const text = shield + '%';
+  if ($('shield').textContent !== text) {
+    $('shield').textContent = text;
+    $('shieldBar').style.width = text;
+  }
+}
+
+function endEvent(returnFocus = true) {
+  const hadFocus = $('eventBanner').contains(document.activeElement);
+  event = null;
+  $('eventBanner').hidden = true;
+  $('environment').textContent = 'STABLE';
+  setEventHud(100);
+  if (returnFocus && hadFocus) $('eventBtn').focus({preventScroll: true});
+}
+
+function startEvent(type, context = eventContext()) {
+  if (!ready || warp || loading) {
+    notify('순항 중 우주 상황을 실행할 수 있습니다.');
+    return;
+  }
+  const next = AsteriaEvents.start(type, context, elapsed);
+  if (!next) {
+    if (Object.hasOwn(events, type)) notify('발생 조건 · ' + events[type].requirement);
+    return;
+  }
+  if (event) endEvent(false);
+  event = next;
+  const entry = events[type];
+  $('eventName').textContent = entry.name;
+  $('eventDescription').textContent = entry.description;
+  $('eventAction').textContent = entry.action[0];
+  $('eventAction').hidden = false;
+  $('eventTime').textContent = entry.seconds + '초';
+  $('eventBanner').hidden = false;
+  $('environment').textContent = entry.code;
+  notify(entry.name + ' · 관측 상황 개시');
+}
+
+for (const [type, entry] of Object.entries(events)) {
+  $('eventSelect').append(new Option(entry.name, type));
+}
+
+$('eventAction').onclick = () => {
+  const next = AsteriaEvents.respond(event, elapsed);
+  if (!next || next === event) return;
+  event = next;
+  $('eventDescription').textContent = events[event.type].action[1];
+  $('eventAction').hidden = true;
+  $('eventDismiss').focus({preventScroll: true});
+};
+$('eventDismiss').onclick = () => endEvent();
+
+function updateEvents() {
+  if (!ready) return;
+  if (event) {
+    if (elapsed >= event.end) endEvent();
+    else {
+      const state = AsteriaEvents.state(event, elapsed);
+      const time = state.remaining + '초';
+      if ($('eventTime').textContent !== time) $('eventTime').textContent = time;
+      setEventHud(state.shield);
+    }
+  }
+
+  const context = eventContext();
+  const key = context.id + '/' + context.ring;
+  if (eventOptionsKey !== key) {
+    eventOptionsKey = key;
+    for (const option of $('eventSelect').options) {
+      const entry = events[option.value];
+      option.disabled = !AsteriaEvents.eligible(option.value, context);
+      option.textContent = option.disabled ? entry.name + ' · ' + entry.requirement : entry.name;
+    }
+  }
+  const enteredRing = context.ring && !wasInRing;
+  wasInRing = context.ring;
+  if (!random || event || warp || loading) return;
+  if (enteredRing || elapsed >= nextEvent) {
+    const available = Object.keys(events).filter(type => AsteriaEvents.eligible(type, context));
+    const type = enteredRing ? 'ring' : available[Math.floor(Math.random() * available.length)];
+    startEvent(type, context);
+    nextEvent = elapsed + 30 + Math.random() * 30;
+  }
+}
 $('travel').onclick=()=>engage(+$('destinationSelect').value);$('warp').onclick=()=>engage();$('speed').oninput=e=>{throttle=+e.target.value;updateSpeed();};$('autopilot').onclick=()=>{if(tour)stopRoute();setWalking(false);setAuto(!auto);};$('walkToggle').onclick=()=>{setWalking(!walking);$('view').focus({preventScroll:true});};$('reset').onclick=reset;$('cinema').onclick=()=>setCinema(true);$('exitCinema').onclick=()=>setCinema(false);$('roomToggle').onclick=()=>setRoom(!room);$('eventBtn').onclick=()=>startEvent($('eventSelect').value);$('randomEvent').onclick=()=>{random=!random;nextEvent=elapsed+6;$('randomEvent').textContent='자동 상황 '+(random?'ON':'OFF');$('randomEvent').setAttribute('aria-pressed',String(random));};$('help').onclick=()=>$('helpDialog').showModal();$('closeHelp').onclick=()=>$('helpDialog').close();$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{notify('전체 화면을 지원하지 않거나 차단되었습니다.');}};
 $('sound').onclick=async()=>{try{if(!audioCtx){let AC=window.AudioContext||window.webkitAudioContext;audioCtx=new AC();audioOsc=audioCtx.createOscillator();audioOsc.type='sine';audioGain=audioCtx.createGain();audioGain.gain.value=0;audioOsc.connect(audioGain).connect(audioCtx.destination);audioOsc.start();}await audioCtx.resume();sound=!sound;$('sound').setAttribute('aria-pressed',String(sound));$('sound').querySelector('span').textContent='음향 '+(sound?'ON':'OFF');updateSpeed();}catch{notify('음향을 사용할 수 없습니다.');}};
 const view=$('view');view.addEventListener('pointerdown',e=>{if(e.button!==0)return;setAuto(false);view.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,id:e.pointerId};view.setPointerCapture(e.pointerId);});view.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;turnView(-(e.clientX-drag.x)*.19,(e.clientY-drag.y)*.19);drag.x=e.clientX;drag.y=e.clientY;});for(let ev of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(ev,()=>drag=null);view.addEventListener('dblclick',reset);view.addEventListener('wheel',e=>{e.preventDefault();zoomBy(-Math.sign(e.deltaY)*.08);},{passive:false});
@@ -760,7 +863,6 @@ if (walking) {
     step*(Number(keys.has('w')) - Number(keys.has('s'))), bank);
 }
 let wa=0;if(warp){let p=(now-warp.start)/3800;wa=reduced?0:clamp(Math.min(p*5,(1-p)*4),0,1);if(p>.48&&!warp.changed){warp.changed=true;if(warp.next!==null)setDest(warp.next,warp.images);reset();}if(p>=1){warp=null;wa=0;updateWalkControls();updateRouteControls();$('warp').classList.remove('engaged');$('warp').querySelector('b').textContent='워프 항해';$('warp').disabled=$('travel').disabled=$('destinationSelect').disabled=false;$('flightStatus').textContent='순항 항해 중';$('modeLabel').textContent='SUBLIGHT DRIVE';notify('워프 종료 · 관측 구역 도착');}updateSpeed(wa);}$('warpGlow').style.opacity=wa*.8;
-if(event&&elapsed-event.start>=event.duration)endEvent();if(random&&!event&&!warp&&!loading&&elapsed>=nextEvent){let ids=Object.keys(events);startEvent(ids[Math.floor(Math.random()*ids.length)]);nextEvent=elapsed+30+Math.random()*30;}if(event&&(event.type==='flare'||event.type==='meteor')){let p=(elapsed-event.start)/event.duration,val=Math.round(100-12*Math.sin(p*Math.PI));$('shield').textContent=val+'%';$('shieldBar').style.width=val+'%';}
-advanceTour(dt);updateCamera();advanceRoute(dt);renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);let bearing=(yaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(pitch>=0?'+':'')+pitch.toFixed(1)+'°';$('rollRead').textContent=(roll>=0?'+':'')+roll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}requestAnimationFrame(frame);}
+advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);let bearing=(yaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(pitch>=0?'+':'')+pitch.toFixed(1)+'°';$('rollRead').textContent=(roll>=0?'+':'')+roll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}requestAnimationFrame(frame);}
 window.addEventListener('resize',resize);if(window.ResizeObserver)new ResizeObserver(layoutControls).observe(document.querySelector('.console'));resize();updateSpeed();requestAnimationFrame(frame);
 })();

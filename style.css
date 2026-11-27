@@ -127,3 +127,20 @@
   color: var(--muted);
   margin-inline-start: 3px;
 }
+
+.eventbanner { pointer-events: auto; }
+.eventbanner #eventTime { display: inline; margin-inline-start: 6px; color: #f6d699; }
+.event-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.event-actions button {
+  min-height: 27px;
+  padding: 3px 8px;
+  border: 1px solid #4c7185;
+  border-radius: 4px;
+  color: #e0f1fa;
+  background: #102838;
+  font-size: 11px;
+}
+.event-actions #eventAction { border-color: #a28259; }
+@media (prefers-reduced-motion: reduce) {
+  .eventpulse { animation: none; }
+}
