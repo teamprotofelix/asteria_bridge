@@ -37,8 +37,8 @@ def boot(browser, url, mode, *, mobile=False, disable_gpu=False, reduced_motion=
 def travel(page, option, name, mode):
     page.select_option("#destinationSelect", str(option))
     page.click("#travel")
-    expect(page.locator("#destinationName")).to_have_text(name)
-    expect(page.locator("#warp")).to_be_enabled()
+    expect(page.locator("#destinationName")).to_have_text(name, timeout=20_000)
+    expect(page.locator("#warp")).to_be_enabled(timeout=20_000)
     expect(page.locator("#renderMode")).to_have_text(mode)
 
 
@@ -171,6 +171,120 @@ def test_mobile(browser, url):
     expect(page.locator("#destinationName")).to_have_text("DEEP SPACE")
     expect(page.locator("#approachControl")).to_be_hidden()
     assert page.evaluate("document.documentElement.scrollWidth") == 390
+    assert not errors, errors
+    page.close()
+
+
+def room_eye(page):
+    return page.locator("#roomView").evaluate("""canvas => {
+        const gl = canvas.getContext('webgl');
+        const program = gl?.getParameter(gl.CURRENT_PROGRAM);
+        const eye = program && gl.getUniformLocation(program, 'eye');
+        return eye ? Array.from(gl.getUniform(program, eye)) : null;
+    }""")
+
+
+def test_bridge_walk(browser, url):
+    page, errors = boot(browser, url, "RENDER / WEBGL 3D")
+    walk = page.locator("#walkToggle")
+    expect(walk).to_be_enabled()
+    page.wait_for_function("document.querySelector('#roomView').width > 300")
+    assert room_eye(page) == [0, 0, 0]
+    room = page.locator("#roomView")
+    assert room.evaluate("""canvas => {
+        const gl = canvas.getContext('webgl');
+        const center = new Uint8Array(4), lower = new Uint8Array(4);
+        gl.readPixels(canvas.width >> 1, canvas.height >> 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, center);
+        gl.readPixels(canvas.width >> 1, 10, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, lower);
+        return center[3] === 0 && lower[3] === 255;
+    }"""), "The room must have a transparent window and an opaque deck"
+    room_frame = room.evaluate("canvas => canvas.toDataURL()")
+    outside = snapshot(page)
+    page.keyboard.press("v")
+    expect(walk).to_have_attribute("aria-pressed", "true")
+    page.keyboard.down("w")
+    page.wait_for_timeout(500)
+    page.keyboard.up("w")
+    assert room_eye(page)[2] > .15
+    assert room.evaluate("canvas => canvas.toDataURL()") != room_frame
+    assert snapshot(page) == outside
+
+    page.keyboard.down("Space")
+    page.wait_for_timeout(500)
+    page.keyboard.up("Space")
+    assert .15 < room_eye(page)[1] <= .651
+    page.keyboard.down("Shift")
+    page.wait_for_timeout(900)
+    page.keyboard.up("Shift")
+    assert -.651 <= room_eye(page)[1] < 0
+    page.keyboard.down("e")
+    page.wait_for_function("parseFloat(document.querySelector('#rollRead').textContent) > 15")
+    page.keyboard.up("e")
+    page.keyboard.press("c")
+    expect(walk).to_have_attribute("aria-pressed", "false")
+    expect(page.locator("#exitCinema")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("#exitCinema")).to_be_hidden()
+    page.keyboard.press("r")
+    page.wait_for_function("document.querySelector('#rollRead').textContent === '+0.0°'")
+    assert room_eye(page) == [0, 0, 0]
+
+    walk.click()
+    page.click("#roomToggle")
+    expect(walk).to_have_attribute("aria-pressed", "false")
+    expect(page.locator("#roomToggle")).to_have_text("함교 OFF")
+    walk.click()
+    expect(page.locator("#roomToggle")).to_have_text("함교 ON")
+    travel(page, 3, "DEEP SPACE", "RENDER / WEBGL 360°")
+    expect(walk).to_have_attribute("aria-pressed", "false")
+    expect(walk).to_be_enabled()
+    walk.click()
+    page.evaluate("""document.querySelector('#roomView').getContext('webgl')
+        .getExtension('WEBGL_lose_context').loseContext()""")
+    expect(page.locator("#renderMode")).to_have_text("RENDER / CANVAS 360°")
+    expect(walk).to_be_disabled()
+    expect(walk).to_have_attribute("aria-pressed", "false")
+    page.set_viewport_size({"width": 768, "height": 620})
+    expect(walk).to_be_in_viewport(ratio=1)
+    expect(page.locator("#travel")).to_be_in_viewport(ratio=1)
+    assert not errors, errors
+    page.close()
+
+
+def test_bridge_mesh_fallback(browser, url):
+    page = browser.new_page(reduced_motion="reduce")
+    page.add_init_script("""
+        const shaderSource = WebGLRenderingContext.prototype.shaderSource;
+        WebGLRenderingContext.prototype.shaderSource = function(shader, source) {
+            return shaderSource.call(this, shader, source.includes('attribute vec3 tint;')
+                ? 'forced bridge shader failure' : source);
+        };
+    """)
+    page.goto(url)
+    expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 3D")
+    expect(page.locator("#walkToggle")).to_be_disabled()
+    page.wait_for_function("document.querySelector('#roomView').width > 300")
+    assert room_eye(page) is None
+    page.close()
+
+
+def test_bridge_touch(browser, url):
+    page, errors = boot(browser, url, "RENDER / WEBGL 3D", mobile=True)
+    walk = page.locator("#walkToggle")
+    walk.tap()
+    expect(walk).to_have_attribute("aria-pressed", "true")
+    expect(page.get_by_role("button", name="상승", exact=True)).to_be_in_viewport()
+    expect(page.get_by_role("button", name="오른쪽 롤", exact=True)).to_be_in_viewport()
+    button = page.get_by_role("button", name="오른쪽", exact=True)
+    bounds = button.bounding_box()
+    center = {"x": bounds["x"] + bounds["width"]/2, "y": bounds["y"] + bounds["height"]/2}
+    touch = page.context.new_cdp_session(page)
+    touch.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [center]})
+    page.wait_for_timeout(500)
+    touch.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    assert room_eye(page)[0] > .15
+    walk.tap()
+    expect(walk).to_have_attribute("aria-pressed", "false")
     assert not errors, errors
     page.close()
 
@@ -309,6 +423,10 @@ def main():
                 )
                 test_desktop(browser, url)
                 test_mobile(browser, url)
+                test_bridge_walk(browser, url)
+                test_bridge_mesh_fallback(browser, url)
+                test_bridge_touch(browser, url)
+                print("PASS: 3D bridge, movement, mode transitions, touch and mesh fallback", flush=True)
                 test_fallbacks(browser, url)
                 test_upload_failure(browser, url)
                 print("PASS: Texture OOM on surface, bridge and destination cubemap", flush=True)

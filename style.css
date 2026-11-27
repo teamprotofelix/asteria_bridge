@@ -73,3 +73,42 @@
 }
 #startupStatus { margin: 0; }
 #retryStartup { margin-top: 10px; }
+
+.controls { grid-template-columns: repeat(4, 1fr); }
+.touchpad .walk-only { display: none; }
+@media (max-width: 900px) {
+  .controls { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 761px) and (max-width: 900px) {
+  .console {
+    height: auto;
+    max-height: none;
+  }
+}
+@media (max-width: 760px), (pointer: coarse) {
+  .walking .touchpad {
+    position: absolute;
+    display: grid;
+    grid-template-columns: repeat(5, 30px);
+    grid-template-rows: repeat(2, 28px);
+    gap: 4px;
+    left: 3%;
+    bottom: calc(var(--console-clear, 35%) + 46px);
+    z-index: 5;
+  }
+  .walking .touchpad .walk-only { display: block; }
+  .walking .touchpad .walk-only:nth-child(5) { grid-area: 1 / 4; }
+  .walking .touchpad .walk-only:nth-child(6) { grid-area: 2 / 4; }
+  .walking .touchpad .walk-only:nth-child(7) { grid-area: 1 / 5; }
+  .walking .touchpad .walk-only:nth-child(8) { grid-area: 2 / 5; }
+  .walking .viewhint { display: none; }
+}
+@media (pointer: coarse) and (min-width: 761px) {
+  .walking .touchpad button {
+    border: 1px solid #538294;
+    background: #0c2335be;
+    border-radius: 4px;
+    color: #bdebf3;
+    touch-action: none;
+  }
+}
