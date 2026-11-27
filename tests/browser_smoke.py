@@ -49,6 +49,8 @@ def snapshot(page):
 def test_desktop(browser, url):
     page, errors = boot(browser, url, "RENDER / WEBGL 3D")
     approach = page.locator("#approach")
+    expect(page.locator("#approachNear")).to_be_in_viewport(ratio=1)
+    expect(page.locator("#approachFar")).to_be_in_viewport(ratio=1)
     assert page.evaluate("""() => {
         const scene = AsteriaSpace.scenes.nereid;
         const far = AsteriaSpace.sample(scene, 0, 0);
@@ -74,6 +76,18 @@ def test_desktop(browser, url):
     approach.fill("0")
     page.wait_for_function("(far) => document.querySelector('#skyView').toDataURL() === far", arg=far)
 
+    # Reduced motion jumps directly to each endpoint and still redraws the scene.
+    distance = page.locator("#surfaceDistance")
+    expect(distance).to_have_text("11.9 SU")
+    page.get_by_role("button", name="접근", exact=True).click()
+    expect(approach).to_have_value("100")
+    expect(distance).to_have_text("0.7 SU")
+    page.wait_for_function("(far) => document.querySelector('#skyView').toDataURL() !== far", arg=far)
+    page.get_by_role("button", name="이탈", exact=True).click()
+    expect(approach).to_have_value("0")
+    expect(distance).to_have_text("11.9 SU")
+    page.wait_for_function("(far) => document.querySelector('#skyView').toDataURL() === far", arg=far)
+
     page.locator("#view").focus()
     page.keyboard.down("d")
     page.wait_for_function("parseFloat(document.querySelector('#heading').textContent) > 20")
@@ -97,6 +111,9 @@ def test_desktop(browser, url):
         if mode == "3D":
             expect(approach).to_be_visible()
             expect(page.locator("#approachRead")).to_have_text("30%")
+            expect(page.locator("#surfaceDistance")).to_contain_text("SU")
+            if n == 7:
+                expect(page.locator("#rangeLabel")).to_have_text("가장 가까운 소행성")
         else:
             expect(approach).to_be_hidden()
 
@@ -126,6 +143,33 @@ def test_mobile(browser, url):
     expect(page.locator("#eventBtn")).to_be_in_viewport()
     page.locator("#approach").fill("75")
     expect(page.locator("#approachRead")).to_have_text("75%")
+    near = page.locator("#approachNear")
+    far = page.locator("#approachFar")
+    expect(near).to_be_in_viewport()
+    expect(far).to_be_in_viewport()
+    near.tap()
+    expect(near).to_have_text("정지")
+    page.wait_for_function("Number(document.querySelector('#approach').value) > 75")
+    near.tap()
+    expect(near).to_have_text("접근")
+    paused = page.locator("#approach").input_value()
+    page.wait_for_timeout(200)
+    expect(page.locator("#approach")).to_have_value(paused)
+    near.tap()
+    expect(page.locator("#approach")).to_have_value("100", timeout=12_000)
+    expect(near).to_have_attribute("aria-disabled", "true")
+    far.tap()
+    expect(far).to_have_text("정지")
+    page.locator("#approach").fill("50")
+    expect(far).to_have_text("이탈")
+    expect(page.locator("#approachRead")).to_have_text("50%")
+    far.tap()
+    page.select_option("#destinationSelect", "3")
+    page.tap("#travel")
+    expect(far).to_have_text("이탈")
+    expect(far).to_be_disabled()
+    expect(page.locator("#destinationName")).to_have_text("DEEP SPACE")
+    expect(page.locator("#approachControl")).to_be_hidden()
     assert page.evaluate("document.documentElement.scrollWidth") == 390
     assert not errors, errors
     page.close()
