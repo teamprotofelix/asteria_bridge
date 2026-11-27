@@ -253,6 +253,8 @@ def test_bridge_walk(browser, url):
 
 def test_bridge_mesh_fallback(browser, url):
     page = browser.new_page(reduced_motion="reduce")
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
     page.add_init_script("""
         const shaderSource = WebGLRenderingContext.prototype.shaderSource;
         WebGLRenderingContext.prototype.shaderSource = function(shader, source) {
@@ -263,8 +265,35 @@ def test_bridge_mesh_fallback(browser, url):
     page.goto(url)
     expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 3D")
     expect(page.locator("#walkToggle")).to_be_disabled()
+    room_toggle = page.locator("#roomToggle")
+    expect(room_toggle).to_have_text("함교 ON")
     page.wait_for_function("document.querySelector('#roomView').width > 300")
     assert room_eye(page) is None
+
+    alpha = page.locator("#roomView").evaluate("""canvas => {
+        const gl = canvas.getContext('webgl');
+        const pixel = new Uint8Array(4);
+        const x = gl.drawingBufferWidth >> 1;
+        gl.readPixels(x, gl.drawingBufferHeight >> 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+        const windowAlpha = pixel[3];
+        gl.readPixels(x, 10, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+        return [windowAlpha, pixel[3]];
+    }""")
+    assert alpha == [0, 255], f"Expected transparent window and opaque deck, got alpha {alpha}"
+
+    view = page.locator("#view").bounding_box()
+    clip = {"x": int(view["x"] + view["width"] / 2) + 8,
+            "y": int(view["y"] + view["height"] / 2) - 8,
+            "width": 12, "height": 12}
+    through_window = page.screenshot(clip=clip)
+    sky = page.locator("#skyView")
+    sky.evaluate("canvas => canvas.style.visibility = 'hidden'")
+    assert page.screenshot(clip=clip) != through_window, "The sky must contribute to the window pixels"
+    sky.evaluate("canvas => canvas.style.removeProperty('visibility')")
+    room_toggle.click()
+    expect(room_toggle).to_have_text("함교 OFF")
+    assert page.screenshot(clip=clip) == through_window, "The open window must show the unobstructed sky"
+    assert not errors, errors
     page.close()
 
 

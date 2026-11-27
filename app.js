@@ -137,9 +137,10 @@ function gpuLayer(canvas, alpha) {
     void main(){
       vec3 ray=rot*vec3(uv*scale,1.);
       float c=cos(presentation.x), s=sin(presentation.x);
-      vec3 rgb=textureCube(cube,vec3(c*ray.x+s*ray.z,ray.y,c*ray.z-s*ray.x)).rgb;
+      vec4 texel=textureCube(cube,vec3(c*ray.x+s*ray.z,ray.y,c*ray.z-s*ray.x));
+      vec3 rgb=texel.rgb;
       if(presentation.y>.5) rgb=pow(max(rgb-vec3(.006),vec3(0.)),vec3(.76));
-      gl_FragColor=vec4(rgb,1.);
+      gl_FragColor=vec4(rgb,texel.a);
     }`;
   function compile(type, source) {
     const shader = gl.createShader(type);
