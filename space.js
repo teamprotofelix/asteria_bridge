@@ -25,10 +25,11 @@ const AsteriaSpace = (() => {
     },
     belt: { surface: 'rock', belt: true, route: [[-1, 0, -5], [1.5, 0.45, 4.4]] },
   };
+  for (const {id, scene} of AsteriaSectors.additions) scenes[id] = scene;
   const defaultRoute = [[-1, 0, -5], [1.3, 0.45, 4.2]];
   const bodyCount = 8;
 
-  function sample(scene, elapsed, approach) {
+  function sample(scene, elapsed, approach, orbit = 0) {
     const spheres = new Float32Array(bodyCount * 4);
     const put = (index, x, y, z, radius) => spheres.set([x, y, z, radius], index * 4);
     if (scene.radius) put(0, ...center, scene.radius);
@@ -39,18 +40,28 @@ const AsteriaSpace = (() => {
         center[2] + Math.sin(angle) * distance, radius);
     }
     if (scene.belt) {
+      const [offset, width, spread, spacing] = scene.swarm ?? [0, 2.7, 1.65, 1.74];
       for (let i = 0; i < bodyCount; i++) {
-        const phase = i * 2.39996 + elapsed * (0.05 + 0.008 * i);
-        put(i, Math.cos(phase) * (2.7 + i * 0.43), Math.sin(phase) * 1.65,
-          6.3 + i * 1.74 + Math.sin(phase) * 0.8, 0.26 + (i % 4) * 0.19);
+        const phase = offset + i * 2.39996 + elapsed * (0.05 + 0.008 * i);
+        put(i, Math.cos(phase) * (width + i * 0.43), Math.sin(phase) * spread,
+          6.3 + i * spacing + Math.sin(phase) * 0.8, 0.26 + (i % 4) * 0.19);
       }
     }
+    return {spheres, eye: cameraPoint(scene, approach, orbit), spin: elapsed * (scene.spin ?? 0.08)};
+  }
+
+  function cameraPoint(scene, approach, orbit) {
     const [far, near] = scene.route ?? defaultRoute;
-    return {
-      spheres,
-      eye: far.map((value, axis) => value + (near[axis] - value) * approach),
-      spin: elapsed * (scene.spin ?? 0.08),
-    };
+    const [x, y, z] = far.map((value, axis) => value + (near[axis] - value) * approach);
+    const dx = x - center[0], dz = z - center[2];
+    const c = Math.cos(orbit), s = Math.sin(orbit);
+    return [center[0] + c*dx + s*dz, y, center[2] - s*dx + c*dz];
+  }
+
+  function lookAtRoute(scene, approach, orbit) {
+    const eye = cameraPoint(scene, approach, orbit);
+    const [x, y, z] = center.map((value, axis) => value - eye[axis]);
+    return [Math.atan2(x, z), Math.atan2(y, Math.hypot(x, z))];
   }
 
   function surfaceDistance(scene, { spheres, eye }) {
@@ -79,6 +90,9 @@ uniform vec3 atmosphere;
 uniform vec4 ring;
 uniform float ringInner;
 uniform int kind;
+uniform vec3 tint;
+uniform vec3 skyTone;
+uniform float structureStyle;
 
 const float PI = 3.14159265;
 const float FAR = 10000.0;
@@ -151,7 +165,7 @@ void main() {
       lensArc = exp(-18.0*abs(impact-0.92));
     }
   }
-  vec3 color = textureCube(cube, skyRay).rgb;
+  vec3 color = textureCube(cube, skyRay).rgb * skyTone;
   color += lensArc * vec3(0.53, 0.24, 0.095);
 
   if (index >= 0) {
@@ -166,11 +180,14 @@ void main() {
       float shadow = ringHit(start, SUN);
       if (shadow < FAR) sunlight *= 1.0 - 0.75*ringBands(length(start + shadow*SUN - bodies[0].xyz));
     }
-    vec3 albedo = surfaceColor(n, spin + float(index)*1.9);
+    vec3 albedo = surfaceColor(n, spin + float(index)*1.9) * tint;
     if (kind == 2) {
       color = vec3(0.002, 0.002, 0.004);
     } else if (kind == 1) {
-      color = min(vec3(1.0), albedo*1.22 + vec3(0.29, 0.055, 0.006));
+      color = min(vec3(1.0), albedo*1.22 + vec3(0.29, 0.055, 0.006)*tint);
+    } else if (kind == 4) {
+      float grid = smoothstep(.74, .96, cos(26.0*atan(n.z, n.x))*cos(20.0*n.y));
+      color = vec3(.10, .15, .20) * (.64 + sunlight) + tint*(.16 + .61*grid);
     } else {
       if (index != 0 && kind != 3) albedo = vec3(dot(albedo, vec3(0.30, 0.55, 0.15))) * vec3(0.85, 0.85, 0.91);
       color = albedo * (0.12 + 0.91*sunlight);
@@ -200,10 +217,21 @@ void main() {
       float heat = 1.0 - (radius - ringInner)/(ring.w - ringInner);
       float flow = sin(11.0*radius + 4.0*atan(offset.z, offset.x) - spin*17.0);
       vec3 light = mix(vec3(0.75, 0.18, 0.055), vec3(1.0, 0.87, 0.64), heat*heat);
-      color = mix(color, light*(0.80 + 0.20*flow), smoothstep(0.0, 0.18, bands)*(0.4 + 0.5*heat));
+      color = mix(color, light*tint*(0.80 + 0.20*flow), smoothstep(0.0, 0.18, bands)*(0.4 + 0.5*heat));
+    } else if (kind == 4) {
+      vec3 axis = normalize(cross(ring.xyz, vec3(1.0, 0.0, 0.0)));
+      float angle = atan(dot(offset, axis), dot(offset, cross(axis, ring.xyz)));
+      float radial = (radius - ringInner) / (ring.w - ringInner);
+      float rim = step(.39, radial) * (1.0 - step(.54, radial))
+        + step(.80, radial) * (1.0 - step(.88, radial));
+      float segment = step(.13 + .09*structureStyle, cos(angle*(5.0 + structureStyle)));
+      float spoke = step(.94, cos(angle*(6.0 + 2.0*structureStyle)));
+      float solid = max(spoke, rim*segment);
+      float strips = step(.83, cos(58.0*angle)) * step(.78, radial);
+      color = mix(color, vec3(.12, .18, .23) + tint*(.35 + .55*strips), solid);
     } else {
       float light = hitSphere(point + SUN*0.003, SUN, bodies[0]) < FAR ? 0.20 : 1.0;
-      color = mix(color, mix(vec3(0.63, 0.72, 0.79), vec3(0.91, 0.76, 0.55), bands)*light,
+      color = mix(color, mix(vec3(0.63, 0.72, 0.79), vec3(0.91, 0.76, 0.55), bands)*light*tint,
         clamp(bands / (0.42 + abs(dot(ray, ring.xyz))), 0.0, 0.94));
     }
   }
@@ -212,7 +240,7 @@ void main() {
 `;
 
   function bind(gl, program, checkTextureUpload) {
-    const names = ['surface', 'bodies[0]', 'eye', 'spin', 'atmosphere', 'ring', 'ringInner', 'kind'];
+    const names = ['surface', 'bodies[0]', 'eye', 'spin', 'atmosphere', 'ring', 'ringInner', 'kind', 'tint', 'skyTone', 'structureStyle'];
     const uniforms = Object.fromEntries(names.map(name => [name, gl.getUniformLocation(program, name)]));
     let texture = null;
     let activeScene = null;
@@ -250,9 +278,9 @@ void main() {
       activeScene = scene;
     }
 
-    function draw(elapsed, approach) {
+    function draw(elapsed, approach, orbit) {
       const scene = activeScene;
-      const position = sample(scene, elapsed, approach);
+      const position = sample(scene, elapsed, approach, orbit);
       const { spheres, eye, spin } = position;
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -266,12 +294,15 @@ void main() {
       const length = Math.hypot(...normal);
       gl.uniform4f(uniforms.ring, ...normal.map(value => value / length), ring?.outer ?? 0);
       gl.uniform1f(uniforms.ringInner, ring?.inner ?? 0);
-      gl.uniform1i(uniforms.kind, scene.blackHole ? 2 : scene.emissive ? 1 : scene.belt ? 3 : 0);
+      gl.uniform1i(uniforms.kind, scene.blackHole ? 2 : scene.emissive ? 1 : scene.belt ? 3 : scene.structure ? 4 : 0);
+      gl.uniform3fv(uniforms.tint, scene.tint ?? [1, 1, 1]);
+      gl.uniform3fv(uniforms.skyTone, scene.skyTone ?? [1, 1, 1]);
+      gl.uniform1f(uniforms.structureStyle, scene.structureStyle ?? 0);
       return surfaceDistance(scene, position);
     }
 
     return { upload, draw, clear };
   }
 
-  return { scenes, sample, fragment, bind };
+  return { scenes, sample, lookAtRoute, fragment, bind };
 })();

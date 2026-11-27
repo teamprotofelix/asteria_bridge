@@ -2,6 +2,11 @@
 (()=>{
 const $=id=>document.getElementById(id), faces=['front','right','back','left','up','down'], base='assets/v2/';
 const destinations=[['nereid','NEREID','네레이드 · 고리형 가스 행성','OR-07'],['selene','SELENE','셀레네 · 얼음 행성','PE-12'],['eos','EOS','이오스 · 붉은 암석 행성','CA-19'],['deep','DEEP SPACE','심우주 · 자유 항해','DS-00'],['gaia','GAIA','가이아 · 지구형 해양 행성','GA-21'],['solaris','SOLARIS','솔라리스 · 항성 근접 관측','SO-32'],['singularity','SINGULARITY','특이점 · 블랙홀 강착원반','BH-09'],['belt','ASTEROID BELT','소행성대 · 파편 구역','AB-17'],['nebula','NEBULA','성운 · 별 탄생 구역','NE-44']];
+const groups = {legacy: '기존 탐사 구역', ...AsteriaSectors.groups};
+for (const {group, id, name, description, code} of AsteriaSectors.additions) {
+  destinations.push([id, name, description, code, group]);
+}
+
 const events={meteor:['유성우','미세 유성체 흐름 감지 · 관측 보호막 작동','METEOR SHOWER'],asteroid:['소행성 통과','암석 천체가 인접 항로를 가로지릅니다.','NEAR FLYBY'],comet:['혜성 조우','청백색 이온 꼬리와 먼지 꼬리를 관측합니다.','COMET'],flare:['태양 폭풍','고에너지 입자 흐름 · 보호막 모의 부하','SOLAR STORM'],signal:['미확인 신호','원거리 공명 신호를 레이더에서 추적합니다.','SIGNAL DETECTED'],flyby:['탐사선 조우','무인 탐사선이 시야를 가로지릅니다.','PROBE CONTACT']};
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, keys=new Set();
 let yaw=0,pitch=0,roll=0,zoom=1,focal=500,w=1,h=1,dpr=1,throttle=35,auto=false,cinema=false,room=true,dest=0,warp=null,loading=false,event=null,random=false,nextEvent=0,drag=null,last=performance.now(),elapsed=0,toastTimer,clockSec=-1,sound=false,audioCtx=null,audioOsc=null,audioGain=null;
@@ -34,29 +39,42 @@ function loadImg(url) {
 function loadImages(paths, retry = '') {
   return Promise.all(paths.map(path => loadImg(path + retry)));
 }
-function urls(n){return faces.map(f=>`${base}${destinations[n][0]}-${f}.webp`);}
+function urls(id) { return faces.map(face => `${base}${id}-${face}.webp`); }
 const roomURLs=faces.map(f=>`${base}bridge-${f}.webp`);
 let renderer=null,ready=false,revision=0,drawn='',lastDraw=0,lastSkyDraw=0,lastMotion=0,activeSky=null,activeRoom=null;
-let deepSky=null;
+let backgroundCache = null;
 let approach=0.30;
 let routeMotion = null;
 let drawnApproach = null;
+let orbit = 0;
+let drawnOrbit = null;
+let tour = null;
+const tourLegs = [
+  {label: '접근', approach: .83, orbit: 0, seconds: 3.6},
+  {label: '관측', approach: .83, orbit: 0, seconds: 2.4},
+  {label: '선회', approach: .83, orbit: .62, seconds: 4.2},
+  {label: '이탈', approach: 0, orbit: 0, seconds: 3.6},
+];
 
-async function loadSky(n, retry = ''){
-  const legacy = loadImages(urls(n), retry);
-  const scene = AsteriaSpace.scenes[destinations[n][0]];
+function loadBackground(id, retry) {
+  if (backgroundCache?.id === id) return backgroundCache.promise;
+  const promise = loadImages(urls(id), retry);
+  backgroundCache = {id, promise};
+  promise.catch(() => {
+    if (backgroundCache?.promise === promise) backgroundCache = null;
+  });
+  return promise;
+}
+
+async function loadSky(n, retry = '') {
+  const [id] = destinations[n];
+  const scene = AsteriaSpace.scenes[id];
+  const legacy = loadImages(urls(scene?.fallback ?? id), retry);
   if (!renderer.sky.space || !scene) return {legacy: await legacy};
-  if (!deepSky) {
-    const background = loadImages(urls(3), retry);
-    deepSky = background;
-    background.catch(() => {
-      if (deepSky === background) deepSky = null;
-    });
-  }
   const [fallback, geometry] = await Promise.all([
     legacy,
     Promise.all([
-      deepSky,
+      loadBackground(scene.background ?? 'deep', retry),
       scene.surface ? loadImg(`${base}${scene.surface}-4k.webp${retry}`) : null,
     ]).then(([background, surface]) => ({scene, background, surface})).catch(() => null),
   ]);
@@ -211,7 +229,7 @@ function gpuLayer(canvas, alpha) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
     gl.uniform1i(shader.sampler, 0);
-    const distance = geometry ? space.draw(reduced ? 0 : elapsed, approach) : null;
+    const distance = geometry ? space.draw(reduced ? 0 : elapsed, approach, orbit) : null;
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     return distance;
   }
@@ -308,6 +326,7 @@ function updateCamera() {
 
 function turnView(horizontal, vertical, bank = 0) {
   if (!horizontal && !vertical && !bank) return;
+  if (tour) stopRoute();
   if (walking) {
     walkOrientation = AsteriaBridge.turn(walkOrientation, horizontal * rad, vertical * rad, bank * rad);
   } else {
@@ -344,10 +363,11 @@ function renderCamera(now, frameMs) {
   const moving = now - lastMotion < 190;
   const redrawCamera = changed || (drawn !== key + '/static' && now - lastDraw >= 230);
   const animateSky = renderer.sky.geometry && !reduced && now - lastSkyDraw >= 32;
-  const manualRouteChange = renderer.sky.geometry && !routeMotion && approach !== drawnApproach;
+  const manualRouteChange = renderer.sky.geometry && !routeMotion && (approach !== drawnApproach || orbit !== drawnOrbit);
   if (redrawCamera || animateSky || manualRouteChange) {
     const distance = renderer.sky.draw(cameraMatrix, w, h, moving);
     drawnApproach = approach;
+    drawnOrbit = orbit;
     if (distance != null) {
       const text = distance.toFixed(1) + ' SU';
       if ($('surfaceDistance').textContent !== text) $('surfaceDistance').textContent = text;
@@ -373,10 +393,10 @@ function updateRendererLabel() {
     : renderer.gpu ? 'RENDER / WEBGL 360°' : 'RENDER / CANVAS 360°';
   $('approachControl').hidden = !geometry;
   $('bridge').classList.toggle('route-available', geometry);
-  if (!geometry) routeMotion = null;
   if (!renderer.room.interior && walking) setWalking(false);
   updateWalkControls();
-  updateRouteControls();
+  if (geometry) updateRouteControls();
+  else stopRoute();
 }
 function uploadSky(sky) {
   activeSky = sky.legacy;
@@ -411,7 +431,7 @@ function fallbackToCanvas(reason, error) {
   previous.room.release();
   if (activeSky) renderer.sky.upload(activeSky);
   if (activeRoom) renderer.room.upload(activeRoom);
-  deepSky = null;
+  backgroundCache = null;
   if (ready) updateRendererLabel();
   revision++;
   notify(reason + ' · Canvas 360° 모드 전환');
@@ -427,6 +447,8 @@ function notify(msg){$('toast').textContent=msg;$('toast').classList.add('show')
 function updateRouteControls() {
   const blocked = !ready || !renderer.sky.geometry || loading || !!warp;
   $('approach').disabled = $('approachNear').disabled = $('approachFar').disabled = blocked;
+  $('tourBtn').disabled = blocked || walking;
+  $('tourBtn').textContent = tour ? '순회 정지' : '관측 순회';
   for (const [id, target, label] of [['approachNear', 1, '접근'], ['approachFar', 0, '이탈']]) {
     const button = $(id);
     const active = routeMotion?.target === target;
@@ -437,7 +459,50 @@ function updateRouteControls() {
 
 function stopRoute() {
   routeMotion = null;
+  if (tour) {
+    tour = null;
+    $('tourPhase').textContent = '순회 중단';
+  }
   updateRouteControls();
+}
+
+function startTour() {
+  if ($('tourBtn').disabled) return;
+  if (tour) {
+    stopRoute();
+    return;
+  }
+  stopRoute();
+  setAuto(false);
+  tour = {index: 0, elapsed: 0, start: approach, orbit};
+  $('tourPhase').textContent = '1/4 접근';
+  updateRouteControls();
+}
+
+function advanceTour(dt) {
+  if (!tour || document.hidden) return;
+  const leg = tourLegs[tour.index];
+  tour.elapsed += dt;
+  const fraction = reduced ? 1 : Math.min(1, tour.elapsed / leg.seconds);
+  const easing = fraction * fraction * (3 - 2 * fraction);
+  setApproach(tour.start + (leg.approach - tour.start)*easing);
+  orbit = tour.orbit + (leg.orbit - tour.orbit)*easing;
+  const scene = AsteriaSpace.scenes[destinations[dest][0]];
+  const [bearing, elevation] = AsteriaSpace.lookAtRoute(scene, approach, orbit);
+  yaw = bearing / rad;
+  pitch = elevation / rad;
+  roll = 0;
+  cameraDirty = true;
+  if (tour.elapsed < (reduced ? 1.2 : leg.seconds)) return;
+  const next = tour.index + 1;
+  if (next === tourLegs.length) {
+    tour = null;
+    $('tourPhase').textContent = '순회 완료';
+    updateRouteControls();
+    return;
+  }
+  tour = {index: next, elapsed: 0, start: approach, orbit};
+  $('tourPhase').textContent = `${next + 1}/4 ${tourLegs[next].label}`;
 }
 
 function setApproach(position) {
@@ -450,6 +515,7 @@ function setApproach(position) {
 
 function moveRoute(target) {
   if ($('approach').disabled) return;
+  if (tour) stopRoute();
   if (routeMotion?.target === target) {
     stopRoute();
   } else if (approach !== target) {
@@ -479,6 +545,7 @@ $('approach').addEventListener('input', event => {
 });
 $('approachNear').onclick = () => moveRoute(1);
 $('approachFar').onclick = () => moveRoute(0);
+$('tourBtn').onclick = startTour;
 
 function setDest(n, sky) {
   dest = n;
@@ -486,8 +553,12 @@ function setDest(n, sky) {
   if (sky) {
     stopRoute();
     setApproach(0.30);
+    orbit = 0;
+    $('tourPhase').textContent = '';
     $('surfaceDistance').textContent = '—';
-    $('rangeLabel').textContent = d[0] === 'belt' ? '가장 가까운 소행성' : '천체 표면';
+    const scene = AsteriaSpace.scenes[d[0]];
+    $('rangeLabel').textContent = scene?.belt ? '가장 가까운 소행성'
+      : scene?.structure ? '중심 구조물' : '천체 표면';
     uploadSky(sky);
   }
   $('destinationName').textContent = d[1];
@@ -497,14 +568,24 @@ function setDest(n, sky) {
   $('routeCode').textContent = d[3];
   $('destinationSelect').value = String(n);
 }
-destinations.forEach((d,i)=>{let op=document.createElement('option');op.value=i;op.textContent=d[2];$('destinationSelect').append(op);});
+$('sectorCount').textContent = destinations.length + '개';
+const optionsByGroup = new Map(Object.entries(groups).map(([id, label]) => {
+  const options = document.createElement('optgroup');
+  options.label = label;
+  $('destinationSelect').append(options);
+  return [id, options];
+}));
+destinations.forEach(([, , description, , group = 'legacy'], index) => {
+  optionsByGroup.get(group).append(new Option(description, index));
+});
+
 setDest(0);
 let startupAttempt = 0;
 async function startBridge() {
   if (ready || loading) return;
   loading = true;
   const retry = startupAttempt++ ? `?retry=${Date.now()}` : '';
-  if (retry) deepSky = null;
+  if (retry) backgroundCache = null;
   $('retryStartup').hidden = true;
   $('startupStatus').textContent = '관측창 에셋을 불러오는 중입니다.';
   $('flightStatus').textContent = '관측창 준비 중';
@@ -551,6 +632,7 @@ function setAuto(on) {
   updateWalkControls();
 }
 function reset() {
+  if (tour) stopRoute();
   setAuto(false);
   yaw = pitch = roll = 0;
   walkOrientation = AsteriaBridge.orientation(0, 0, 0);
@@ -575,6 +657,7 @@ function setWalking(on) {
   keys.clear();
   cameraDirty = true;
   setAuto(false);
+  updateRouteControls();
   revision++;
 }
 function setCinema(on) {
@@ -616,7 +699,7 @@ function updateSpeed(wa=0){$('throttlePct').textContent=Math.round(throttle)+'%'
 async function engage(n=null){if(warp||loading)return;if(!ready){notify('초기 우주 에셋 준비 중입니다.');return;}setWalking(false);loading=true;updateWalkControls();stopRoute();$('warp').disabled=$('travel').disabled=$('destinationSelect').disabled=true;$('flightStatus').textContent='항로 계산 중';try{let images=n!==null&&n!==dest?await loadSky(n):null;warp={start:performance.now(),next:n,changed:false,images};$('warp').classList.add('engaged');$('warp').querySelector('b').textContent='워프 진행 중';$('flightStatus').textContent='워프 항해 중';$('modeLabel').textContent='WARP DRIVE';notify(n===null?'워프 드라이브 가동':destinations[n][1]+' 항로 설정 · 워프 개시');}catch(e){notify('목적지 이미지 로드 실패. 현재 구역 유지.');$('warp').disabled=$('travel').disabled=$('destinationSelect').disabled=false;$('flightStatus').textContent='순항 항해 중';}finally{loading=false;updateWalkControls();updateRouteControls();}}
 function endEvent(){event=null;$('eventBanner').hidden=true;$('environment').textContent='STABLE';$('shield').textContent='100%';$('shieldBar').style.width='100%';}
 function startEvent(type){if(warp||loading){notify('순항 중 우주 상황을 실행할 수 있습니다.');return;}const e=events[type];if(!e)return;if(event)endEvent();event={type,start:elapsed,duration:12};$('eventName').textContent=e[0];$('eventDescription').textContent=e[1];$('eventBanner').hidden=false;$('environment').textContent=e[2];notify(e[0]+' · 관측 상황 개시');}
-$('travel').onclick=()=>engage(+$('destinationSelect').value);$('warp').onclick=()=>engage();$('speed').oninput=e=>{throttle=+e.target.value;updateSpeed();};$('autopilot').onclick=()=>{setWalking(false);setAuto(!auto);};$('walkToggle').onclick=()=>{setWalking(!walking);$('view').focus({preventScroll:true});};$('reset').onclick=reset;$('cinema').onclick=()=>setCinema(true);$('exitCinema').onclick=()=>setCinema(false);$('roomToggle').onclick=()=>setRoom(!room);$('eventBtn').onclick=()=>startEvent($('eventSelect').value);$('randomEvent').onclick=()=>{random=!random;nextEvent=elapsed+6;$('randomEvent').textContent='자동 상황 '+(random?'ON':'OFF');$('randomEvent').setAttribute('aria-pressed',String(random));};$('help').onclick=()=>$('helpDialog').showModal();$('closeHelp').onclick=()=>$('helpDialog').close();$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{notify('전체 화면을 지원하지 않거나 차단되었습니다.');}};
+$('travel').onclick=()=>engage(+$('destinationSelect').value);$('warp').onclick=()=>engage();$('speed').oninput=e=>{throttle=+e.target.value;updateSpeed();};$('autopilot').onclick=()=>{if(tour)stopRoute();setWalking(false);setAuto(!auto);};$('walkToggle').onclick=()=>{setWalking(!walking);$('view').focus({preventScroll:true});};$('reset').onclick=reset;$('cinema').onclick=()=>setCinema(true);$('exitCinema').onclick=()=>setCinema(false);$('roomToggle').onclick=()=>setRoom(!room);$('eventBtn').onclick=()=>startEvent($('eventSelect').value);$('randomEvent').onclick=()=>{random=!random;nextEvent=elapsed+6;$('randomEvent').textContent='자동 상황 '+(random?'ON':'OFF');$('randomEvent').setAttribute('aria-pressed',String(random));};$('help').onclick=()=>$('helpDialog').showModal();$('closeHelp').onclick=()=>$('helpDialog').close();$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{notify('전체 화면을 지원하지 않거나 차단되었습니다.');}};
 $('sound').onclick=async()=>{try{if(!audioCtx){let AC=window.AudioContext||window.webkitAudioContext;audioCtx=new AC();audioOsc=audioCtx.createOscillator();audioOsc.type='sine';audioGain=audioCtx.createGain();audioGain.gain.value=0;audioOsc.connect(audioGain).connect(audioCtx.destination);audioOsc.start();}await audioCtx.resume();sound=!sound;$('sound').setAttribute('aria-pressed',String(sound));$('sound').querySelector('span').textContent='음향 '+(sound?'ON':'OFF');updateSpeed();}catch{notify('음향을 사용할 수 없습니다.');}};
 const view=$('view');view.addEventListener('pointerdown',e=>{if(e.button!==0)return;setAuto(false);view.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,id:e.pointerId};view.setPointerCapture(e.pointerId);});view.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;turnView(-(e.clientX-drag.x)*.19,(e.clientY-drag.y)*.19);drag.x=e.clientX;drag.y=e.clientY;});for(let ev of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(ev,()=>drag=null);view.addEventListener('dblclick',reset);view.addEventListener('wheel',e=>{e.preventDefault();zoomBy(-Math.sign(e.deltaY)*.08);},{passive:false});
 const map={arrowup:'w',arrowdown:'s',arrowleft:'a',arrowright:'d'}, editable=el=>el&&['INPUT','SELECT','TEXTAREA'].includes(el.tagName);
@@ -678,6 +761,6 @@ if (walking) {
 }
 let wa=0;if(warp){let p=(now-warp.start)/3800;wa=reduced?0:clamp(Math.min(p*5,(1-p)*4),0,1);if(p>.48&&!warp.changed){warp.changed=true;if(warp.next!==null)setDest(warp.next,warp.images);reset();}if(p>=1){warp=null;wa=0;updateWalkControls();updateRouteControls();$('warp').classList.remove('engaged');$('warp').querySelector('b').textContent='워프 항해';$('warp').disabled=$('travel').disabled=$('destinationSelect').disabled=false;$('flightStatus').textContent='순항 항해 중';$('modeLabel').textContent='SUBLIGHT DRIVE';notify('워프 종료 · 관측 구역 도착');}updateSpeed(wa);}$('warpGlow').style.opacity=wa*.8;
 if(event&&elapsed-event.start>=event.duration)endEvent();if(random&&!event&&!warp&&!loading&&elapsed>=nextEvent){let ids=Object.keys(events);startEvent(ids[Math.floor(Math.random()*ids.length)]);nextEvent=elapsed+30+Math.random()*30;}if(event&&(event.type==='flare'||event.type==='meteor')){let p=(elapsed-event.start)/event.duration,val=Math.round(100-12*Math.sin(p*Math.PI));$('shield').textContent=val+'%';$('shieldBar').style.width=val+'%';}
-updateCamera();advanceRoute(dt);renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);let bearing=(yaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(pitch>=0?'+':'')+pitch.toFixed(1)+'°';$('rollRead').textContent=(roll>=0?'+':'')+roll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}requestAnimationFrame(frame);}
+advanceTour(dt);updateCamera();advanceRoute(dt);renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);let bearing=(yaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(pitch>=0?'+':'')+pitch.toFixed(1)+'°';$('rollRead').textContent=(roll>=0?'+':'')+roll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}requestAnimationFrame(frame);}
 window.addEventListener('resize',resize);if(window.ResizeObserver)new ResizeObserver(layoutControls).observe(document.querySelector('.console'));resize();updateSpeed();requestAnimationFrame(frame);
 })();
