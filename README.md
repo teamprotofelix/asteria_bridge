@@ -5,7 +5,7 @@
 ## 시작하기
 
 - ZIP을 압축 해제하고 `index.html`을 브라우저에서 여세요. 모든 상대경로 에셋을 같이 유지하세요. 브라우저의 로컬 파일 접근 정책에 따라 정적 HTTP 호스팅이 필요할 수 있습니다.
-- GitHub Pages: 저장소 루트에 `index.html`, `app.js`, `sky-assets.js`, `sectors.js`, `space.js`, `bridge-layout.js`, `marie.js`, `bridge-room.js`, `events.js`, `navigation-map.js`, `bridge-audio.js`, `style.css`, `.nojekyll`, `assets/`를 업로드합니다. Settings → Pages → Deploy from a branch → main / (root) → Save.
+- GitHub Pages: 저장소 루트에 `index.html`, `app.js`, `sky-assets.js`, `sectors.js`, `space.js`, `bridge-layout.js`, `marie-rig.js`, `marie-motion.js`, `marie.js`, `bridge-room.js`, `events.js`, `navigation-map.js`, `bridge-audio.js`, `style.css`, `.nojekyll`, `assets/`를 업로드합니다. Settings → Pages → Deploy from a branch → main / (root) → Save.
 - 별도 빌드 과정 없음. 일반 정적 호스트 또는 로컬 `python -m http.server 8000`으로도 실행할 수 있습니다.
 
 ## 조작법
@@ -52,11 +52,11 @@
 
 ### 마리와 함께하는 함교
 
-마리는 3D 함교에서 전방과 보조 계기판을 점검하며 순찰합니다. **마리** 버튼으로 현재 활동과 보고를 볼 수 있습니다. 목적지 선택, 워프 개시, 도착, 위험 상황에 맞춰 보고가 바뀝니다.
+마리는 3D 함교에서 계기판 점검, 순찰, 관측, 휴식을 번갈아 수행합니다. **마리 → 동행 켜기**를 선택한 뒤 **함교 이동**을 사용하면, 통로와 가구를 피하며 거리를 두고 따라옵니다. **상태 보고**에서는 현재 항로와 관측 상태를 확인할 수 있습니다.
 
-순항을 일정 시간 이어가면 차를 준비합니다. **차 준비**를 눌러 바로 요청할 수도 있습니다. 미확인 신호나 구조 신호가 들어오면 **드론 파견**으로 모의 조사를 시작합니다. 신호 관측이 끝나면 진행 중인 드론을 귀환시킵니다.
+**차 준비**를 요청하면 준비와 대접을 거쳐 **차 받기**가 활성화됩니다. 경보나 워프 중에는 작업을 보류합니다. 미확인 신호나 구조 신호가 들어오면 **드론 파견** 또는 **드론 귀환**을 선택할 수 있습니다. 조사 결과는 모의 데이터로 표시됩니다.
 
-동작 줄이기에서는 마리의 이동 애니메이션을 멈추고 활동과 보고를 계속 표시합니다. Canvas 파노라마에서도 마리 패널과 지원 요청을 사용할 수 있습니다.
+동작 줄이기에서는 위치와 연속 동작을 고정하고 업무 상태와 포즈를 갱신합니다. Canvas에서도 보고·차·드론 기능을 사용할 수 있습니다. [모델과 검증 자료](qa/PR11_REPORT.md)
 
 ### 함교 음향과 자동 관측
 

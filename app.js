@@ -19,7 +19,7 @@ let hatchOpen = false, hatchSlide = 0, hatchOverride = null;
 let seat = null, standingPose = null, stepDistance = 0;
 let nightBridge = false, bridgeAlert = 0, bridgeWarp = 0;
 const safeBridgeEvents = new Set(['meteor', 'asteroid', 'flare', 'ring', 'dust']);
-let drawnMariePose = null, lastMarieDraw = 0;
+let drawnMariePose = null, lastMarieDraw = 0, crewClockReset = false;
 const watchSeconds = 45;
 const watchRoute = ['nereid', 'gaia', 'halogate', 'nebula', 'cryon', 'helion', 'undertow', 'hush'];
 
@@ -403,7 +403,7 @@ function moveInside(dt, inputs = keys) {
     distance*(sideways*Math.cos(bearing) + forward*Math.sin(bearing)),
     distance*vertical,
     distance*(forward*Math.cos(bearing) - sideways*Math.sin(bearing)),
-  ], hatchSlide);
+  ], hatchSlide, marie.pose().point);
   stepDistance += Math.hypot(walkPosition[0]-before[0], walkPosition[2]-before[2]);
   if (stepDistance >= .79) {
     stepDistance = 0;
@@ -438,8 +438,8 @@ function renderCamera(now, frameMs) {
   }
   if (room) {
     const pose = renderer.room.interior ? marie.pose() : null;
-    const poseKey = pose && [pose.point[0], pose.point[1], pose.direction, pose.step, pose.tea].join('/');
-    const marieMoved = poseKey !== drawnMariePose && now - lastMarieDraw >= 66;
+    const poseKey = pose?.revision;
+    const marieMoved = poseKey !== drawnMariePose && now - lastMarieDraw >= 50;
     if (redrawCamera || roomMoved || marieMoved || roomFrame !== drawnRoomFrame) {
       renderer.room.draw(cameraMatrix, w, h, moving || marieMoved);
       drawnMariePose = poseKey;
@@ -916,7 +916,9 @@ function interactBridge() {
 function updateHatch(dt) {
   const sensor = walking && !seat && AsteriaInterior.hatchSensor(walkPosition, hatchOpen);
   if (!walking || Math.abs(walkPosition[2] + 4.86) > 2.7 || Math.abs(walkPosition[0]) > 1.6) hatchOverride = null;
-  const next = (hatchOverride ?? sensor) || (walking && AsteriaInterior.nearHatch(walkPosition));
+  const [crewX,crewZ] = marie.pose().point;
+  const crewInDoor = hatchSlide >= .45 && AsteriaInterior.nearHatch([crewX,0,crewZ]);
+  const next = (hatchOverride ?? sensor) || crewInDoor || (walking && AsteriaInterior.nearHatch(walkPosition));
   if (hatchOpen !== next) {
     hatchOpen = next;
     soundscape.cue('hatch');
@@ -980,6 +982,24 @@ if(e.type==='comet'||e.type==='flyby'){let a=project(-8+16*p,.85+Math.sin(p*Math
 if(e.type==='flare'){let a=project(.6,.2,1);if(a){let r=Math.max(w,h)*.75,g=ctx.createRadialGradient(a[0],a[1],0,a[0],a[1],r);g.addColorStop(0,`rgba(255,170,65,${fade*(e.responded ? .14 : .36)})`);g.addColorStop(1,'#ff652000');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);}}
 if(e.type==='signal'){let a=project(1.2,.7,3);if(a){ctx.strokeStyle=`rgba(110,255,214,${fade*.65})`;ctx.lineWidth=1.4;for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(a[0],a[1],5+((p*130+i*20)%60),0,7);ctx.stroke();}}}}
   if (event) AsteriaEvents.draw(event, elapsed, {ctx, width: w, height: h, project, reduced});
+  const drone = marie.droneView();
+  if (drone) {
+    const t = reduced ? .82 : drone.progress;
+    const point = project(.55+t*1.30,.12+t*.69,2.7+t*4.8);
+    if (point) {
+      const [x,y,depth] = point, r = clamp(focal*.073/depth,3,14);
+      ctx.fillStyle='#a5ede6';
+      ctx.beginPath();
+      ctx.moveTo(x-r*1.55,y+r*.43);
+      ctx.lineTo(x,y-r*.7);
+      ctx.lineTo(x+r*1.55,y+r*.43);
+      ctx.lineTo(x,y+r*.20);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle='#edfffb';
+      ctx.fillRect(x-r*.17,y-r*.15,r*.34,r*.45);
+    }
+  }
 }
 function drawRadar(t){let r=radar;r.clearRect(0,0,160,160);r.save();r.translate(80,80);r.strokeStyle='#305166';r.lineWidth=1;for(let i=1;i<=4;i++){r.beginPath();r.arc(0,0,i*17,0,7);r.stroke();}r.beginPath();r.moveTo(-68,0);r.lineTo(68,0);r.moveTo(0,-68);r.lineTo(0,68);r.stroke();let a=t*.9;let g=r.createRadialGradient(0,0,0,0,0,68);g.addColorStop(0,'#6deeea00');g.addColorStop(1,'#6deeea15');r.fillStyle=g;r.beginPath();r.moveTo(0,0);r.arc(0,0,68,a-.65,a);r.closePath();r.fill();r.strokeStyle='#69e3df';r.beginPath();r.moveTo(0,0);r.lineTo(Math.cos(a)*68,Math.sin(a)*68);r.stroke();for(let i=0;i<5;i++){let angle=i*2.5+dest*.4-yaw*rad,dist=17+i*10;r.fillStyle=event&&i===0?'#ffbf76':'#79e2dc';r.beginPath();r.arc(Math.cos(angle)*dist,Math.sin(angle)*dist,i===0?3:1.8,0,7);r.fill();}r.fillStyle='#d8ffff';r.fillRect(-2,-2,4,4);r.restore();}
 function updateSpeed(wa = 0) {
@@ -1216,6 +1236,7 @@ window.addEventListener('keyup',e=>keys.delete(map[e.key.toLowerCase()]||e.key.t
 window.addEventListener('blur',()=>{keys.clear();drag=null;});
 document.addEventListener('visibilitychange', () => {
   if (watch) watch.skipFrame = true;
+  crewClockReset = true;
   if (document.hidden) {
     keys.clear();
     resetQualitySamples();
@@ -1258,7 +1279,12 @@ if (!wasWarping) advanceWatch(clamp(frameMs / 1000, 0, 1));
 updateHatch(dt);
 updateBridgeLight(dt, wa);
 advanceAudio(now);
-advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();if (ready && !document.hidden) marie.advance(clamp(frameMs / 1000, 0, 1));renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);const displayYaw = walking ? Math.atan2(cameraMatrix[6],cameraMatrix[8])/rad : yaw;
+advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();if (ready && !document.hidden) {
+  marie.advance(crewClockReset ? 0 : clamp(frameMs / 1000, 0, 1),
+    {walking, eye:walkPosition, hatch:hatchSlide, loading});
+  crewClockReset = false;
+}
+renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);const displayYaw = walking ? Math.atan2(cameraMatrix[6],cameraMatrix[8])/rad : yaw;
 const displayPitch = walking ? Math.asin(clamp(cameraMatrix[7],-1,1))/rad : pitch;
 const displayRoll = walking ? Math.atan2(cameraMatrix[1],cameraMatrix[4])/rad : roll;
 let bearing=(displayYaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(displayPitch>=0?'+':'')+displayPitch.toFixed(1)+'°';$('rollRead').textContent=(displayRoll>=0?'+':'')+displayRoll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}updateQualityHud(now,frameMs);requestAnimationFrame(frame);}

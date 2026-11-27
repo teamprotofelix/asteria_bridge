@@ -405,3 +405,6 @@
 @media (max-width: 760px) and (max-height: 500px) {
   #bridgeInterior { top: 52px; }
 }
+
+#marieDronePhase:empty { display: none; }
+#marieDronePhase { color: #a5e8e5; font-size: .85rem; }

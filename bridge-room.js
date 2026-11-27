@@ -147,6 +147,9 @@ const AsteriaBridge = (() => {
       }
     }
     Object.values(AsteriaInterior.seats).forEach(chair);
+    box([-3.26,-1.77,-3.405],[-2.32,-1.33,-2.955],dark);
+    box([-3.25,-1.36,-3.42],[-2.33,-1.29,-2.63],fabric,1);
+    box([-3.25,-1.31,-3.44],[-2.33,-.64,-3.28],fabric,1);
 
     // The pressure doorway opens into a separate aft viewing bay.
     box([-3.25,-1.91,-7.99],[3.25,-1.8,-5.06],dark);
@@ -175,30 +178,35 @@ const AsteriaBridge = (() => {
       box([x-.33,.22,-4.806],[x+.33,.255,-4.798], trim);
       frames.push(data.length / 7);
     }
-    const actor = AsteriaMarie.model(box, quad, () => data.length / 7);
-    return {vertices: new Float32Array(data), frames, actor};
+    return {vertices: new Float32Array(data), frames};
   }
 
   const vertex = `
 attribute vec3 position;
 attribute vec3 tint;
 attribute float surface;
+attribute float joint;
+attribute vec3 vertexNormal;
 uniform vec3 eye;
 uniform mat3 basis;
 uniform vec2 scale;
 uniform float hatchOffset;
 uniform vec4 actorPose;
-uniform float walkingStep;
+uniform mat4 skin[16];
 uniform bool drawActor;
 varying vec3 color;
 varying vec3 point;
 varying float material;
+varying vec3 actorNormal;
 void main() {
   vec3 world = position + vec3(hatchOffset, 0.0, 0.0);
+  actorNormal = vec3(0.0);
   if (drawActor) {
     float c = cos(actorPose.w), s = sin(actorPose.w);
-    float step = walkingStep * (1.0 - clamp(position.y / .62, 0.0, 1.0));
-    vec3 local = position + vec3(0.0, max(0.0, -step)*.3, step);
+    mat4 bone = skin[int(joint)];
+    vec3 local = (bone * vec4(position,1.0)).xyz;
+    vec3 n = (bone * vec4(vertexNormal,0.0)).xyz;
+    actorNormal = vec3(c*n.x+s*n.z, n.y, -s*n.x+c*n.z);
     world = vec3(c*local.x + s*local.z, local.y, -s*local.x + c*local.z) + actorPose.xyz;
   }
   vec3 offset = world - eye;
@@ -214,6 +222,7 @@ precision mediump float;
 varying vec3 color;
 varying vec3 point;
 varying float material;
+varying vec3 actorNormal;
 uniform vec3 windowTint;
 uniform vec3 lightDirection;
 uniform vec3 bridgeLighting;
@@ -229,11 +238,19 @@ void main() {
   vec3 lit = color * (taskLight + fill + bounce + warpLight + hazard);
   lit *= material > .5 ? weave : metal;
   if (material > 1.5) lit = mix(lit,color,.65);
+  if (dot(actorNormal,actorNormal) > .15) {
+    vec3 normal = normalize(actorNormal);
+    float key = max(0.0,dot(normal,normalize(vec3(-.32,.60,-.72))));
+    float rim = max(0.0,dot(normal,normalize(vec3(.52,.62,.43))));
+    float exterior = max(0.0,dot(normal,lightDirection));
+    lit = color*(.45 + .44*key + .19*rim + .13*bridgeLighting.x
+      + windowTint*.23*exterior + warpLight + hazard);
+  }
   gl_FragColor = vec4(lit, 1.0);
 }`;
 
   function bind(gl, program, check) {
-    const {vertices, frames, actor} = mesh();
+    const {vertices, frames} = mesh();
     const buffer = gl.createBuffer();
     if (!buffer) throw Error('WebGL bridge mesh allocation failed');
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -245,12 +262,40 @@ void main() {
       throw error;
     }
 
+    function actorBuffer(lod) {
+      const {verts, props} = AsteriaMarieRig.build(lod);
+      const data = new Float32Array(verts.length + props.length);
+      data.set(verts);
+      data.set(props, verts.length);
+      const handle = gl.createBuffer();
+      if (!handle) throw Error('WebGL crew mesh allocation failed');
+      gl.bindBuffer(gl.ARRAY_BUFFER, handle);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+      try {
+        check(gl, 'crew mesh');
+        return {handle, body: verts.length/10, tray: props.length/10};
+      } catch (error) {
+        gl.deleteBuffer(handle);
+        throw error;
+      }
+    }
+
+    let crew = null, crewLow = null;
+    try {
+      crewLow = actorBuffer(true);
+    } catch (error) {
+      console.warn('3D crew renderer unavailable:', error.message);
+    }
+    let highAttempted = false;
+    let lastPose = null, skinData = null;
     const position = gl.getAttribLocation(program, 'position');
     const tint = gl.getAttribLocation(program, 'tint');
     const surface = gl.getAttribLocation(program, 'surface');
-    const [eye, basis, scale, hatchOffset, actorPose, walkingStep, drawActor, windowTint,
+    const joint = gl.getAttribLocation(program, 'joint');
+    const normal = gl.getAttribLocation(program, 'vertexNormal');
+    const [eye, basis, scale, hatchOffset, actorPose, skin, drawActor, windowTint,
       lightDirection, bridgeLighting] =
-      ['eye', 'basis', 'scale', 'hatchOffset', 'actorPose', 'walkingStep', 'drawActor', 'windowTint',
+      ['eye', 'basis', 'scale', 'hatchOffset', 'actorPose', 'skin[0]', 'drawActor', 'windowTint',
         'lightDirection', 'bridgeLighting']
         .map(name => gl.getUniformLocation(program, name));
     return {
@@ -280,25 +325,47 @@ void main() {
         gl.drawArrays(gl.TRIANGLES, left, right - left);
         gl.uniform1f(hatchOffset, 1.09*hatch);
         gl.drawArrays(gl.TRIANGLES, right, end - right);
-        if (pose) {
-          const [body, leftLeg, rightLeg, tray] = actor;
-          const [x, z] = pose.point;
+        if (pose && crewLow) {
+          const [x,z] = pose.point;
+          if (!highAttempted && yScale >= .32 && Math.hypot(x-camera[0],z-camera[2]) < 2.6) {
+            highAttempted = true;
+            try {
+              crew = actorBuffer(false);
+            } catch (error) {
+              console.warn('Using compact crew mesh:', error.message);
+            }
+          }
+          const mesh = Math.hypot(x-camera[0],z-camera[2]) < 2.6 ? crew ?? crewLow : crewLow;
+          gl.bindBuffer(gl.ARRAY_BUFFER, mesh.handle);
+          gl.disableVertexAttribArray(surface);
+          gl.vertexAttrib1f(surface, 0);
+          gl.enableVertexAttribArray(joint);
+          gl.enableVertexAttribArray(normal);
+          gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 40, 0);
+          gl.vertexAttribPointer(tint, 3, gl.FLOAT, false, 40, 12);
+          gl.vertexAttribPointer(joint, 1, gl.FLOAT, false, 40, 24);
+          gl.vertexAttribPointer(normal, 3, gl.FLOAT, false, 40, 28);
           gl.uniform1i(drawActor, 1);
-          gl.uniform4f(actorPose, x, -1.77 + Math.abs(pose.step)*.018, z, pose.direction);
-          gl.uniform1f(walkingStep, 0);
-          gl.drawArrays(gl.TRIANGLES, end, body - end);
-          if (pose.tea) gl.drawArrays(gl.TRIANGLES, rightLeg, tray - rightLeg);
-          gl.uniform1f(walkingStep, pose.step*.14);
-          gl.drawArrays(gl.TRIANGLES, body, leftLeg - body);
-          gl.uniform1f(walkingStep, -pose.step*.14);
-          gl.drawArrays(gl.TRIANGLES, leftLeg, rightLeg - leftLeg);
+          gl.uniform4f(actorPose, x, -1.77, z, pose.direction);
+          if (pose !== lastPose) {
+            lastPose = pose;
+            skinData = AsteriaMarieRig.transforms(pose);
+          }
+          gl.uniformMatrix4fv(skin, false, skinData);
+          gl.drawArrays(gl.TRIANGLES, 0, mesh.body + (pose.tea ? mesh.tray : 0));
+          gl.disableVertexAttribArray(joint);
+          gl.disableVertexAttribArray(normal);
         }
         gl.disable(gl.DEPTH_TEST);
         gl.disableVertexAttribArray(position);
         gl.disableVertexAttribArray(tint);
         gl.disableVertexAttribArray(surface);
       },
-      release() { gl.deleteBuffer(buffer); },
+      release() {
+        gl.deleteBuffer(buffer);
+        if (crew) gl.deleteBuffer(crew.handle);
+        if (crewLow) gl.deleteBuffer(crewLow.handle);
+      },
     };
   }
 
