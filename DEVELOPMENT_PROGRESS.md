@@ -1,0 +1,11 @@
+# ASTERIA II v4 진행표
+
+| 단계 | 상태 | 기준 및 검증 |
+|---|---|---|
+| PR09 Cosmic Fidelity | PR_CREATED | main `85ee12d`와 PR #8 기반. [제출 및 검증 기록](qa/PR09_REPORT.md) |
+| PR10 Bridge | NOT_STARTED | PR09 의존 |
+| PR11 Marie | NOT_STARTED | PR10 의존 |
+| PR12 Flight | NOT_STARTED | PR09–11 의존 |
+| PR13 Intelligence | NOT_STARTED | PR12 의존 |
+| PR14 Persistence | NOT_STARTED | PR12–13 의존 |
+| PR15 Release | NOT_STARTED | PR09–14 의존 |

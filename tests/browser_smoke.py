@@ -725,6 +725,7 @@ def test_fallbacks(browser, url):
 
     page = browser.new_page(reduced_motion="reduce")
     page.route("**/gas-4k.webp", lambda route: route.abort())
+    page.route("**/nereid-surface.webp", lambda route: route.abort())
     page.goto(url)
     page.wait_for_function("document.querySelector('#skyView').width > 300")
     expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 360°")

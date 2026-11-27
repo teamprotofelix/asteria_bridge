@@ -5,7 +5,7 @@
 ## 시작하기
 
 - ZIP을 압축 해제하고 `index.html`을 브라우저에서 여세요. 모든 상대경로 에셋을 같이 유지하세요. 브라우저의 로컬 파일 접근 정책에 따라 정적 HTTP 호스팅이 필요할 수 있습니다.
-- GitHub Pages: 저장소 루트에 `index.html`, `app.js`, `sectors.js`, `space.js`, `marie.js`, `bridge-room.js`, `events.js`, `navigation-map.js`, `bridge-audio.js`, `style.css`, `.nojekyll`, `assets/`를 업로드합니다. Settings → Pages → Deploy from a branch → main / (root) → Save.
+- GitHub Pages: 저장소 루트에 `index.html`, `app.js`, `sky-assets.js`, `sectors.js`, `space.js`, `marie.js`, `bridge-room.js`, `events.js`, `navigation-map.js`, `bridge-audio.js`, `style.css`, `.nojekyll`, `assets/`를 업로드합니다. Settings → Pages → Deploy from a branch → main / (root) → Save.
 - 별도 빌드 과정 없음. 일반 정적 호스트 또는 로컬 `python -m http.server 8000`으로도 실행할 수 있습니다.
 
 ## 조작법
@@ -100,3 +100,13 @@
 브라우저 회귀 검사는 로컬 정적 서버의 하위 경로에서 실행합니다. Playwright와 Chromium을 설치한 환경에서 `python tests/browser_smoke.py`를 실행하세요. 설치된 Chromium 바이너리를 지정하려면 `CHROMIUM_BIN` 환경 변수를 사용합니다.
 
 검사 범위는 데스크톱과 모바일 화면, 기존 9개 구역 및 신규 4개 유형 전환·관측 순회, 상황 발생 조건·대응·워프 종료, 함교 이동·모드 전환·폴백, 지도 선택·워프·방문 저장, 마리 보고·순찰·차·드론, 음향 합성·자동 관측 순회·복귀, 3D 시점 이동, 자동 접근·이탈과 중단, 거리 표시, 동작 줄이기 설정, 360° 입력, 관측 모드, GPU 컨텍스트 손실, 텍스처 메모리 오류, 3D 에셋 누락, 초기 로딩 재시도, 적응형 해상도입니다. 소프트웨어 WebGL로 검사하며 실제 GPU와 실물 모바일 하드웨어는 검증 범위 밖입니다.
+
+## 그래픽 품질
+
+항해 패널의 **그래픽 품질**에서 Auto, Ultra, High, Medium, Low, Compatibility를 선택합니다. 적용 에셋, 큐브 면 크기, 실제 캔버스 크기, 프레임 속도, 활성 WebGL 텍스처 수와 하향 사유를 볼 수 있습니다. 관측 장면의 주광원·대기·구름·반사는 시각적 근사입니다.
+
+- Auto는 터치·저메모리 기기에서 Low로, 다른 기기에서 Medium으로 시작합니다. 프레임 시간에 따른 해상도 변경은 에셋 다운로드와 별개입니다.
+- 32개 구역은 각각 Low 512px 및 Medium 1024px 큐브 면을 사용합니다. Nereid, Gaia, Deep Space, Nebula, Halo Gate에는 2048px High, 4096px Ultra 큐브와 별도로 생성한 8192×4096 원본을 포함합니다.
+- Compatibility는 기존 360° 파노라마를 표시합니다. GPU 오류 시에는 Canvas 모드로 전환됩니다. 품질 창에서 에셋을 다시 불러오거나 취소할 수 있습니다. 출항 전 에셋을 불러오는 중이라면 Esc로도 취소할 수 있습니다.
+
+에셋과 검증 절차는 [에셋 출처](ASSET_LICENSES.md) 및 [PR09 검증 보고서](qa/PR09_REPORT.md)에 정리했습니다.

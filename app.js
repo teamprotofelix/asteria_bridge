@@ -27,31 +27,41 @@ let cameraMatrix = AsteriaBridge.matrix(walkOrientation);
 let cameraDirty = false;
 let drawnRoomPosition = null;
 
-function loadImg(url) {
+function loadImg(url, signal) {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(signal.reason); return; }
     const image = new Image();
+    const fail = () => finish(Error('이미지 로드 실패: ' + url));
+    const abort = () => finish(signal.reason);
     const timeout = setTimeout(fail, 15000);
-    function fail() {
+    function finish(error) {
       clearTimeout(timeout);
+      signal?.removeEventListener('abort', abort);
       image.onload = image.onerror = null;
-      image.removeAttribute('src');
-      reject(Error('이미지 로드 실패: ' + url));
+      if (error) {
+        image.removeAttribute('src');
+        reject(error);
+      } else resolve(image);
     }
-    image.onload = () => {
-      clearTimeout(timeout);
-      resolve(image);
-    };
+    signal?.addEventListener('abort', abort, {once: true});
+    image.onload = () => finish();
     image.onerror = fail;
     image.src = url;
   });
 }
-function loadImages(paths, retry = '') {
-  return Promise.all(paths.map(path => loadImg(path + retry)));
+async function loadImages(paths, retry = '', signal) {
+  const images = [];
+  for (let first = 0; first < paths.length; first += 3) {
+    images.push(...await Promise.all(paths.slice(first, first+3).map(path => loadImg(path + retry, signal))));
+  }
+  return images;
 }
 function urls(id) { return faces.map(face => `${base}${id}-${face}.webp`); }
 const roomURLs=faces.map(f=>`${base}bridge-${f}.webp`);
 let renderer=null,ready=false,revision=0,drawn='',lastDraw=0,lastSkyDraw=0,lastMotion=0,activeSky=null,activeRoom=null;
-let backgroundCache = null;
+let qualityMode = 'auto', activeQuality = null, assetRequest = null, displayFps = 0, hudUpdatedAt = 0;
+const qualityNames = {auto: 'Auto', ultra: 'Ultra', high: 'High', medium: 'Medium', low: 'Low', compatibility: 'Compatibility'};
+const constrained = matchMedia('(pointer: coarse)').matches || (navigator.deviceMemory ?? 8) < 6;
 let approach=0.30;
 let routeMotion = null;
 let drawnApproach = null;
@@ -65,29 +75,44 @@ const tourLegs = [
   {label: '이탈', approach: 0, orbit: 0, seconds: 3.6},
 ];
 
-function loadBackground(id, retry) {
-  if (backgroundCache?.id === id) return backgroundCache.promise;
-  const promise = loadImages(urls(id), retry);
-  backgroundCache = {id, promise};
-  promise.catch(() => {
-    if (backgroundCache?.promise === promise) backgroundCache = null;
-  });
-  return promise;
-}
-
-async function loadSky(n, retry = '') {
+async function loadSky(n, retry = '', signal, mode = qualityMode) {
   const [id] = destinations[n];
-  const scene = AsteriaSpace.scenes[id];
-  const legacy = loadImages(urls(scene?.fallback ?? id), retry);
-  if (!renderer.sky.space || !scene) return {legacy: await legacy};
-  const [fallback, geometry] = await Promise.all([
-    legacy,
-    Promise.all([
-      loadBackground(scene.background ?? 'deep', retry),
-      scene.surface ? loadImg(`${base}${scene.surface}-4k.webp${retry}`) : null,
-    ]).then(([background, surface]) => ({scene, background, surface})).catch(() => null),
-  ]);
-  return {legacy: fallback, geometry};
+  const oldScene = AsteriaSpace.scenes[id];
+  const legacy = loadImages(urls(oldScene?.fallback ?? id), retry, signal);
+  if (!renderer.gpu || mode === 'compatibility') {
+    return {legacy: await legacy, quality: {tier: 'compatibility', reason: '기존 360° 파노라마'}};
+  }
+  const preparation = (async () => {
+    const sky = renderer.sky;
+    const record = await AsteriaSkyAssets.record(id, signal).catch(error => {
+      if (signal?.aborted) throw error;
+      return null;
+    });
+    const preferred = mode === 'auto' ? constrained ? 'low' : 'medium' : mode;
+    const cap = Math.min(sky.textureLimits.cube, constrained ? 1024 : 4096);
+    const packed = await AsteriaSkyAssets.loadBackground(record, preferred, cap, signal, loadImg);
+    if (packed) packed.heading = Number.isFinite(record.skyHeading) ? record.skyHeading * rad : 0;
+    const quality = packed || {tier: 'compatibility', reason: '신규 배경 사용 불가 · 기존 배경'};
+    if (!sky.space || !oldScene) return {panorama: packed?.images, quality};
+
+    const background = packed?.images ?? await loadImages(urls(oldScene.background ?? 'deep'), retry, signal);
+    let surface = null;
+    if (oldScene.surface) {
+      const limit = Math.min(sky.textureLimits.surface, constrained && preferred === 'low' ? 2048 : 4096);
+      surface = await AsteriaSkyAssets.loadSurface(record, limit, signal, loadImg)
+        ?? await loadImg(`${base}${oldScene.surface}-4k.webp${retry}`, signal);
+    }
+    const light = record?.keyLight;
+    const keyLight = Array.isArray(light) && light.length === 3 && light.every(Number.isFinite) ? light : null;
+    const scene = {...oldScene, keyLight, ocean: id === 'gaia' || id === 'thalassa' || id === 'verdant',
+      textureCap: preferred === 'low' ? 2048 : 4096, newSky: !!packed, skyHeading: packed?.heading ?? 0};
+    return {geometry: {scene, background, surface}, quality};
+  })().catch(error => {
+    if (signal?.aborted) throw error;
+    return {quality: {tier: 'compatibility', reason: '천체 에셋 오류 · 기존 파노라마'}};
+  });
+  const [fallback, visual] = await Promise.all([legacy, preparation]);
+  return {legacy: fallback, ...visual};
 }
 
 function checkTextureUpload(gl, label) {
@@ -102,7 +127,20 @@ function gpuLayer(canvas, alpha) {
   });
   if (!gl) throw Error('WebGL not available');
   const vertex = 'attribute vec2 a; varying vec2 uv; void main(){uv=a;gl_Position=vec4(a,0.,1.);}';
-  const panorama = 'precision mediump float;varying vec2 uv;uniform vec2 scale;uniform mat3 rot;uniform samplerCube cube;void main(){gl_FragColor=textureCube(cube,rot*vec3(uv*scale,1.));}';
+  const panorama = `
+    precision mediump float;
+    varying vec2 uv;
+    uniform vec2 scale;
+    uniform mat3 rot;
+    uniform samplerCube cube;
+    uniform vec2 presentation;
+    void main(){
+      vec3 ray=rot*vec3(uv*scale,1.);
+      float c=cos(presentation.x), s=sin(presentation.x);
+      vec3 rgb=textureCube(cube,vec3(c*ray.x+s*ray.z,ray.y,c*ray.z-s*ray.x)).rgb;
+      if(presentation.y>.5) rgb=pow(max(rgb-vec3(.006),vec3(0.)),vec3(.76));
+      gl_FragColor=vec4(rgb,1.);
+    }`;
   function compile(type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);
@@ -149,6 +187,7 @@ function gpuLayer(canvas, alpha) {
   }
 
   const cubeProgram = link(panorama);
+  const presentation = gl.getUniformLocation(cubeProgram.program, 'presentation');
   let bridgeMesh = null;
   let bridgeProgram = null;
   if (alpha) {
@@ -169,6 +208,8 @@ function gpuLayer(canvas, alpha) {
       console.warn('3D space renderer unavailable:', error.message);
     }
   }
+  const textureLimits = {cube: gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE),
+    surface: gl.getParameter(gl.MAX_TEXTURE_SIZE)};
   const vertices = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, vertices);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
@@ -180,7 +221,9 @@ function gpuLayer(canvas, alpha) {
   let currentImages = null;
   let geometry = false;
 
-  function upload(images, scene) {
+  let skyStyle = null;
+  function upload(images, scene, style = null) {
+    skyStyle = style;
     geometry = false;
     if (scene) space.upload(scene.surface, scene.scene);
     else space?.clear();
@@ -210,13 +253,14 @@ function gpuLayer(canvas, alpha) {
     gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     checkTextureUpload(gl, 'cube texture');
-    currentImages = images;
+    currentImages = alpha ? images : null;
   }
 
   function draw(matrix, width, height, moving) {
     if (!texture) return;
-    const limit = bridgeMesh ? (moving ? 960 : 1720) : renderLimit;
-    const pixelRatio = geometry || bridgeMesh ? Math.min(dpr, limit / Math.max(width, height, 1)) : dpr;
+    const limit = bridgeMesh ? (moving ? 960 : 1720) : qualityMode === 'auto' ? renderLimit
+      : AsteriaSkyAssets.caps[activeQuality?.tier] ?? 1080;
+    const pixelRatio = !alpha || bridgeMesh ? Math.min(dpr, limit / Math.max(width, height, 1)) : dpr;
     const dw = Math.max(1, Math.round(width * pixelRatio));
     const dh = Math.max(1, Math.round(height * pixelRatio));
     if (canvas.width !== dw || canvas.height !== dh) {
@@ -238,13 +282,15 @@ function gpuLayer(canvas, alpha) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
     gl.uniform1i(shader.sampler, 0);
+    if (!geometry) gl.uniform2f(presentation, skyStyle?.heading ?? 0, Number(!!skyStyle?.width));
     const distance = geometry ? space.draw(reduced ? 0 : elapsed, approach, orbit) : null;
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     return distance;
   }
 
   return {
-    upload, draw, space: !!space, interior: !!bridgeMesh,
+    upload, draw, space: !!space, interior: !!bridgeMesh, textureLimits,
+    get textureCount() { return Number(!!texture) + Number(geometry); },
     get geometry() { return geometry; },
     release() {
       if (texture) gl.deleteTexture(texture);
@@ -362,7 +408,7 @@ function moveInside(dt, inputs = keys) {
 
 function renderCamera(now, frameMs) {
   if (!ready) return;
-  if (renderer.sky.geometry && !reduced) adaptQuality(now, frameMs);
+  if (renderer.sky.geometry && !reduced && qualityMode === 'auto') adaptQuality(now, frameMs);
   const angles = walking ? walkOrientation : [yaw, pitch, roll];
   const key = [...angles, zoom, w, h, room, hatchSlide, revision].join('/');
   const roomPosition = walkPosition.join('/');
@@ -418,7 +464,9 @@ function uploadSky(sky) {
   activeSky = sky.legacy;
   try {
     const geometry = renderer.sky.space ? sky.geometry : null;
-    renderer.sky.upload(geometry ? geometry.background : sky.legacy, geometry);
+    renderer.sky.upload(geometry ? geometry.background : sky.panorama ?? sky.legacy, geometry, {width: sky.quality.width, heading: sky.quality.heading});
+    const {tier, width, reason} = sky.quality;
+    activeQuality = {tier, width, reason};
   } catch (error) {
     if (!renderer.gpu) throw error;
     fallbackToCanvas('GPU 텍스처 오류', error);
@@ -447,7 +495,7 @@ function fallbackToCanvas(reason, error) {
   previous.room.release();
   if (activeSky) renderer.sky.upload(activeSky);
   if (activeRoom) renderer.room.upload(activeRoom);
-  backgroundCache = null;
+  activeQuality = {tier: 'compatibility', reason};
   if (ready) updateRendererLabel();
   revision++;
   notify(reason + ' · Canvas 360° 모드 전환');
@@ -627,7 +675,6 @@ async function startBridge() {
   if (ready || loading) return;
   loading = true;
   const retry = startupAttempt++ ? `?retry=${Date.now()}` : '';
-  if (retry) backgroundCache = null;
   $('retryStartup').hidden = true;
   $('startupStatus').textContent = '관측창 에셋을 불러오는 중입니다.';
   $('flightStatus').textContent = '관측창 준비 중';
@@ -640,6 +687,7 @@ async function startBridge() {
     marie.arrive(dest);
     $('marieOpen').disabled = false;
     $('mapOpen').disabled = false;
+    $('qualityOpen').disabled = false;
     updateRendererLabel();
     $('startupPanel').hidden = true;
     $('warp').disabled = $('travel').disabled = $('destinationSelect').disabled = false;
@@ -746,6 +794,7 @@ function startWatch() {
 }
 
 function stopWatch() {
+  assetRequest?.abort();
   const {prior} = watch;
   watch = null;
   setAuto(prior.auto);
@@ -843,6 +892,8 @@ function updateSpeed(wa = 0) {
 function setTravelBusy(busy) {
   navigationMap.setBusy(busy);
   $('warp').disabled = $('travel').disabled = $('destinationSelect').disabled = busy;
+  $('qualitySelect').disabled = $('qualityRetry').disabled = busy;
+  $('cancelAssets').hidden = !assetRequest;
   updateWalkControls();
   updateRouteControls();
   updateWatchControls();
@@ -856,12 +907,14 @@ async function engage(n = null, session = null) {
   }
   setWalking(false);
   loading = true;
+  const request = new AbortController();
+  assetRequest = request;
   stopRoute();
   setTravelBusy(true);
   $('flightStatus').textContent = '항로 계산 중';
   if (n !== null) marie.plan(n);
   try {
-    const images = n !== null && n !== dest ? await loadSky(n) : null;
+    const images = n !== null && n !== dest ? await loadSky(n, '', request.signal) : null;
     if (session && watch !== session) return;
     if (event) endEvent();
     warp = {start: performance.now(), next: n, changed: false, images};
@@ -874,14 +927,16 @@ async function engage(n = null, session = null) {
     $('modeLabel').textContent = 'WARP DRIVE';
     if (!watch) notify(n === null ? '워프 드라이브 가동' : destinations[n][1] + ' 항로 설정 · 워프 개시');
   } catch {
-    if (!session || watch === session) {
+    if (!request.signal.aborted && (!session || watch === session)) {
       const message = '목적지 이미지 로드 실패. 현재 구역 유지.';
       navigationMap.fail(message);
       marie.failed();
       notify(message);
+      request.abort();
     }
   } finally {
     loading = false;
+    assetRequest = null;
     setTravelBusy(!!warp);
     if (!warp) $('flightStatus').textContent = '순항 항해 중';
   }
@@ -895,6 +950,7 @@ function advanceWarp(now) {
   if (p > .48 && !warp.changed) {
     warp.changed = true;
     if (warp.next !== null) setDest(warp.next, warp.images);
+    warp.images = null;
     reset();
   }
   if (p < 1) return reduced ? 0 : clamp(Math.min(p*5, (1-p)*4), 0, 1);
@@ -1026,7 +1082,11 @@ $('watchNext').onclick = () => {
 const view=$('view');view.addEventListener('pointerdown',e=>{if(e.button!==0)return;setAuto(false);view.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,id:e.pointerId};view.setPointerCapture(e.pointerId);});view.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;turnView(-(e.clientX-drag.x)*.19,(e.clientY-drag.y)*.19);drag.x=e.clientX;drag.y=e.clientY;});for(let ev of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(ev,()=>drag=null);view.addEventListener('dblclick',reset);view.addEventListener('wheel',e=>{e.preventDefault();zoomBy(-Math.sign(e.deltaY)*.08);},{passive:false});
 const map={arrowup:'w',arrowdown:'s',arrowleft:'a',arrowright:'d'}, editable=el=>el&&['INPUT','SELECT','TEXTAREA'].includes(el.tagName);
 window.addEventListener('keydown', e => {
-  if ($('mapDialog').open || $('marieDialog').open) return;
+  if ($('mapDialog').open || $('marieDialog').open || $('qualityDialog').open) return;
+  if (e.key === 'Escape' && assetRequest && !cinema) {
+    assetRequest.abort();
+    return;
+  }
   if (e.key === 'Escape') {
     if (cinema) setCinema(false);
     if (walking) setWalking(false);
@@ -1096,6 +1156,59 @@ $('warpGlow').style.opacity = wa * .8;
 if (!wasWarping) advanceWatch(clamp(frameMs / 1000, 0, 1));
 updateHatch(dt);
 advanceAudio(now);
-advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();if (ready && !document.hidden) marie.advance(clamp(frameMs / 1000, 0, 1));renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);let bearing=(yaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(pitch>=0?'+':'')+pitch.toFixed(1)+'°';$('rollRead').textContent=(roll>=0?'+':'')+roll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}requestAnimationFrame(frame);}
+advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();if (ready && !document.hidden) marie.advance(clamp(frameMs / 1000, 0, 1));renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);let bearing=(yaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(pitch>=0?'+':'')+pitch.toFixed(1)+'°';$('rollRead').textContent=(roll>=0?'+':'')+roll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}updateQualityHud(now,frameMs);requestAnimationFrame(frame);}
+function updateQualityHud(now, frameMs) {
+  if (frameMs > 0 && frameMs < 200 && !document.hidden) {
+    displayFps += (1000 / frameMs - displayFps)*.06;
+  }
+  if (!$('qualityDialog').open || now - hudUpdatedAt < 300) return;
+  hudUpdatedAt = now;
+  const {tier, width, reason} = activeQuality ?? {};
+  const sky = $('skyView');
+  $('qualityApplied').textContent = qualityNames[tier] ?? '준비 중';
+  $('qualityAssetSize').textContent = width ? width + ' px / 면' : '기존 파노라마';
+  $('qualityResolution').textContent = `${sky.width} × ${sky.height}`;
+  $('qualityFps').textContent = displayFps ? Math.round(displayFps) + ' fps' : '측정 중';
+  $('qualityTextures').textContent = (renderer.sky.textureCount ?? 0) + (renderer.room.textureCount ?? 0);
+  $('qualityReason').textContent = loading ? '에셋 로드 중'
+    : reason || (qualityMode === 'auto' ? '프레임 시간에 맞춰 렌더 해상도 조정 중' : '선택 품질 적용');
+}
+
+$('qualityOpen').onclick = () => {
+  keys.clear();
+  $('qualityDialog').showModal();
+  hudUpdatedAt = -Infinity;
+  updateQualityHud(performance.now(), 0);
+};
+$('qualityClose').onclick = () => $('qualityDialog').close();
+$('cancelAssets').onclick = () => assetRequest?.abort();
+async function applyQuality(desired, retry = '') {
+  if (loading || warp || !ready || !Object.hasOwn(qualityNames, desired)) return;
+  if (!retry && desired === qualityMode) return;
+  const request = new AbortController();
+  assetRequest = request;
+  loading = true;
+  setTravelBusy(true);
+  try {
+    const sky = await loadSky(dest, retry, request.signal, desired);
+    if (request.signal.aborted) return;
+    qualityMode = desired;
+    renderLimit = 1080;
+    uploadSky(sky);
+  } catch (error) {
+    if (!request.signal.aborted) {
+      notify('품질 변경 실패. 현재 화면을 유지합니다.');
+      request.abort();
+    }
+  } finally {
+    $('qualitySelect').value = qualityMode;
+    assetRequest = null;
+    loading = false;
+    setTravelBusy(false);
+  }
+}
+$('qualitySelect').onchange = event => void applyQuality(event.target.value);
+$('qualityRetry').onclick = () => void applyQuality(qualityMode, '?retry=' + Date.now());
+
 window.addEventListener('resize',resize);if(window.ResizeObserver)new ResizeObserver(layoutControls).observe(document.querySelector('.console'));resize();updateSpeed();requestAnimationFrame(frame);
 })();

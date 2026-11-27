@@ -104,10 +104,13 @@ uniform int kind;
 uniform vec3 tint;
 uniform vec3 skyTone;
 uniform float structureStyle;
+uniform vec3 keyLight;
+uniform float oceanWorld;
+uniform float cloudTime;
+uniform vec2 presentation;
 
 const float PI = 3.14159265;
 const float FAR = 10000.0;
-const vec3 SUN = vec3(-0.61, 0.53, -0.59);
 
 vec2 sphereRoots(vec3 origin, vec3 ray, vec3 center, float radius) {
   vec3 offset = origin - center;
@@ -123,6 +126,29 @@ float hitSphere(vec3 origin, vec3 ray, vec4 body) {
   vec2 roots = sphereRoots(origin, ray, body.xyz, body.w);
   if (roots.x > 0.001) return roots.x;
   return roots.y > 0.001 ? roots.y : FAR;
+}
+
+float hitBelt(vec3 origin, vec3 ray, vec4 body) {
+  vec3 aspect = vec3(.82, 1.19 + .13*sin(body.z*2.13), .94 + .12*cos(body.x*2.6));
+  vec3 p = (origin - body.xyz) * aspect;
+  vec3 d = ray * aspect;
+  float a = dot(d,d), b = dot(p,d);
+  float disc = b*b - a*(dot(p,p) - body.w*body.w);
+  if (disc < 0.0) return FAR;
+  float q = (-b-sqrt(disc))/a;
+  return q > .001 ? q : FAR;
+}
+
+// Low-cost shading functions use the same direction space on both sides of the longitude seam.
+float surfaceDetail(vec3 n) {
+  return .55*sin(dot(n,vec3(51.,47.,-44.))) + .3*sin(dot(n,vec3(-113.,129.,105.)))
+    + .15*cos(dot(n,vec3(209.,-241.,181.)));
+}
+float cloudCover(vec3 n) {
+  float a = cloudTime*.027;
+  vec3 m = vec3(cos(a)*n.x+sin(a)*n.z,n.y,cos(a)*n.z-sin(a)*n.x);
+  float cloud = sin(dot(m,vec3(8.1,13.5,-6.2))) + .5*sin(dot(m,vec3(-18.3,26.3,11.)));
+  return smoothstep(.42,1.2,cloud + .22*surfaceDetail(m))*smoothstep(.02,.24,1.0-abs(m.y));
 }
 
 float ringHit(vec3 origin, vec3 ray) {
@@ -155,11 +181,30 @@ void main() {
   int index = -1;
   vec4 body = vec4(0.0);
   for (int i = 0; i < ${bodyCount}; i++) {
-    float depth = hitSphere(eye, ray, bodies[i]);
+    float depth = kind == 3 ? hitBelt(eye, ray, bodies[i]) : hitSphere(eye, ray, bodies[i]);
     if (depth < nearest) {
       nearest = depth;
       index = i;
       body = bodies[i];
+    }
+  }
+
+  if (kind == 4) {
+    vec3 u = normalize(cross(ring.xyz,vec3(1.,0.,0.)));
+    vec3 v = cross(ring.xyz,u);
+    for (int i = 0; i < 5; i++) {
+      float angle = float(i)*1.25664+structureStyle*.57;
+      float span = ring.w*(.59+.12*sin(float(i)*2.0+structureStyle));
+      float elevation = .16 + .08*structureStyle;
+      vec3 center = bodies[0].xyz + span*(u*cos(angle)+v*sin(angle)) +
+        ring.xyz*elevation*cos(angle*2.0);
+      vec4 module = vec4(center,.17+.04*structureStyle+.045*sin(angle*3.0));
+      float d = hitSphere(eye,ray,module);
+      if (d < nearest) {
+        nearest = d;
+        index = 8;
+        body = module;
+      }
     }
   }
 
@@ -176,34 +221,50 @@ void main() {
       lensArc = exp(-18.0*abs(impact-0.92));
     }
   }
-  vec3 color = textureCube(cube, skyRay).rgb * skyTone;
+  float backdropCos=cos(presentation.x), backdropSin=sin(presentation.x);
+  vec3 viewDir=vec3(backdropCos*skyRay.x+backdropSin*skyRay.z,skyRay.y,backdropCos*skyRay.z-backdropSin*skyRay.x);
+  vec3 color=textureCube(cube,viewDir).rgb*skyTone;
+  if(presentation.y>.5) color=pow(max(color-vec3(.006),vec3(0.)),vec3(.76));
   color += lensArc * vec3(0.53, 0.24, 0.095);
 
   if (index >= 0) {
     vec3 point = eye + nearest*ray;
     vec3 n = normalize(point - body.xyz);
-    float sunlight = max(dot(n, SUN), 0.0);
+    float sunlight = max(dot(n, keyLight), 0.0);
     if (sunlight > 0.0 && kind != 2) {
       vec3 start = point + n*0.003;
       for (int i = 0; i < ${bodyCount}; i++) {
-        if (i != index && hitSphere(start, SUN, bodies[i]) < FAR) sunlight *= 0.12;
+        if (i != index && hitSphere(start, keyLight, bodies[i]) < FAR) sunlight *= 0.12;
       }
-      float shadow = ringHit(start, SUN);
-      if (shadow < FAR) sunlight *= 1.0 - 0.75*ringBands(length(start + shadow*SUN - bodies[0].xyz));
+      float shadow = ringHit(start, keyLight);
+      if (shadow < FAR) sunlight *= 1.0 - 0.75*ringBands(length(start + shadow*keyLight - bodies[0].xyz));
     }
     vec3 albedo = surfaceColor(n, spin + float(index)*1.9) * tint;
     if (kind == 2) {
       color = vec3(0.002, 0.002, 0.004);
     } else if (kind == 1) {
-      color = min(vec3(1.0), albedo*1.22 + vec3(0.29, 0.055, 0.006)*tint);
+      float granules = surfaceDetail(n);
+      float flare = pow(max(0.0, sin(6.*n.x+3.*n.y+cloudTime*.32)), 8.0)*.11;
+      color = min(vec3(1.0), albedo*(1.16+.12*granules) + vec3(.25+flare,.06,.008)*tint);
     } else if (kind == 4) {
       float grid = smoothstep(.74, .96, cos(26.0*atan(n.z, n.x))*cos(20.0*n.y));
       color = vec3(.10, .15, .20) * (.64 + sunlight) + tint*(.16 + .61*grid);
     } else {
       if (index != 0 && kind != 3) albedo = vec3(dot(albedo, vec3(0.30, 0.55, 0.15))) * vec3(0.85, 0.85, 0.91);
-      color = albedo * (0.12 + 0.91*sunlight);
+      float rough = surfaceDetail(n);
+      color = albedo * (0.075 + (0.93 + .08*rough)*sunlight);
+      if (kind == 3) color *= .84 + .18*rough;
+      if (index == 0 && oceanWorld > .5) {
+        float ocean = smoothstep(.025,.15,albedo.b-albedo.g);
+        float specular = pow(max(0.0,dot(reflect(-keyLight,n),-ray)),72.0)*ocean;
+        float clouds = cloudCover(n);
+        float night = (1.0-smoothstep(-.32,.04,dot(n,keyLight)))*(1.0-ocean);
+        float lights = smoothstep(.70,.95,surfaceDetail(n*7.3))*max(0.0,.63-abs(n.y));
+        color += vec3(.59,.75,.88)*specular*.48 + vec3(.91,.53,.21)*night*lights*.24;
+        color = mix(color, vec3(.87,.92,1.)*(.11+.83*sunlight),clouds*.53);
+      }
       if (index == 0) color += atmosphere * pow(1.0-max(dot(n, -ray), 0.0), 3.0)
-        * (0.05 + 0.40*max(dot(n, SUN)+0.2, 0.0));
+        * (0.05 + 0.40*max(dot(n, keyLight)+0.2, 0.0));
     }
   }
 
@@ -212,7 +273,7 @@ void main() {
     vec2 shell = sphereRoots(eye, ray, planet.xyz, planet.w * (kind == 1 ? 1.11 : 1.05));
     if (shell.x < nearest && shell.x > 0.0) {
       vec3 n = normalize(eye + shell.x*ray - planet.xyz);
-      float daylight = kind == 1 ? 1.0 : max(0.12, dot(n, SUN)+0.22);
+      float daylight = kind == 1 ? 1.0 : max(0.12, dot(n, keyLight)+0.22);
       float density = smoothstep(0.0, planet.w*0.55, min(shell.y, nearest)-shell.x);
       color += atmosphere * density * daylight * (kind == 1 ? 0.72 : 0.46);
     }
@@ -241,7 +302,7 @@ void main() {
       float strips = step(.83, cos(58.0*angle)) * step(.78, radial);
       color = mix(color, vec3(.12, .18, .23) + tint*(.35 + .55*strips), solid);
     } else {
-      float light = hitSphere(point + SUN*0.003, SUN, bodies[0]) < FAR ? 0.20 : 1.0;
+      float light = hitSphere(point + keyLight*0.003, keyLight, bodies[0]) < FAR ? 0.20 : 1.0;
       color = mix(color, mix(vec3(0.63, 0.72, 0.79), vec3(0.91, 0.76, 0.55), bands)*light*tint,
         clamp(bands / (0.42 + abs(dot(ray, ring.xyz))), 0.0, 0.94));
     }
@@ -251,7 +312,7 @@ void main() {
 `;
 
   function bind(gl, program, checkTextureUpload) {
-    const names = ['surface', 'bodies[0]', 'eye', 'spin', 'atmosphere', 'ring', 'ringInner', 'kind', 'tint', 'skyTone', 'structureStyle'];
+    const names = ['surface', 'bodies[0]', 'eye', 'spin', 'atmosphere', 'ring', 'ringInner', 'kind', 'tint', 'skyTone', 'structureStyle', 'keyLight', 'oceanWorld', 'cloudTime', 'presentation'];
     const uniforms = Object.fromEntries(names.map(name => [name, gl.getUniformLocation(program, name)]));
     let texture = null;
     let activeScene = null;
@@ -268,7 +329,7 @@ void main() {
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, texture);
       if (image) {
-        const max = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+        const max = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), scene.textureCap ?? 4096);
         let source = image;
         if (image.naturalWidth > max) {
           source = document.createElement('canvas');
@@ -307,7 +368,13 @@ void main() {
       gl.uniform1f(uniforms.ringInner, ring?.inner ?? 0);
       gl.uniform1i(uniforms.kind, scene.blackHole ? 2 : scene.emissive ? 1 : scene.belt ? 3 : scene.structure ? 4 : 0);
       gl.uniform3fv(uniforms.tint, scene.tint ?? [1, 1, 1]);
-      gl.uniform3fv(uniforms.skyTone, scene.skyTone ?? [1, 1, 1]);
+      gl.uniform3fv(uniforms.skyTone, scene.newSky ? [1,1,1] : scene.skyTone ?? [1,1,1]);
+      const light = scene.keyLight ?? [-.61,.53,-.59];
+      const magnitude = Math.hypot(...light) || 1;
+      gl.uniform3fv(uniforms.keyLight, light.map(value => value/magnitude));
+      gl.uniform1f(uniforms.oceanWorld, Number(!!scene.ocean));
+      gl.uniform1f(uniforms.cloudTime, elapsed);
+      gl.uniform2f(uniforms.presentation, scene.skyHeading ?? 0, Number(!!scene.newSky));
       gl.uniform1f(uniforms.structureStyle, scene.structureStyle ?? 0);
       return surfaceDistance(scene, position);
     }

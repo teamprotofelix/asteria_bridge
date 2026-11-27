@@ -1,0 +1,1232 @@
+{
+  "nereid": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/nereid-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 36500,
+        "sha256": "e4d5b312038b00337e5ccfd89a2cea819825710a9c9e914a64a1ae854233fe93",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/nereid-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 44260,
+        "sha256": "8ee53e840ffbc3709b0b161ea4d4274c6ae4726616428cda596cc1c1d43cdbec",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "high": {
+        "path": "assets/v4/nereid-high.cube",
+        "width": 2048,
+        "height": 2048,
+        "quality": "high",
+        "bytes": 102250,
+        "sha256": "1ec8767614072c97d951ccee99ab30038939c271362a4511ec223deb56371f53",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "ultra": {
+        "path": "assets/v4/nereid-ultra.cube",
+        "width": 4096,
+        "height": 4096,
+        "quality": "ultra",
+        "bytes": 305444,
+        "sha256": "5ca1b3852b7572c6590528f9d7cc4533906af5138b9220d9e416b5e88c713ec1",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.66,
+      0.35,
+      -0.67
+    ],
+    "surface": {
+      "path": "assets/v4/nereid-surface.webp",
+      "width": 4096,
+      "height": 2048,
+      "quality": "surface",
+      "bytes": 335382,
+      "sha256": "e5faf1d3864c40edf6e7178ec61843500230b54f210aa0407fa89c527b94ba14",
+      "source": "assets/build_v4.py",
+      "license": "original-repository-art"
+    },
+    "master": {
+      "path": "assets/v4/nereid-master.webp",
+      "width": 8192,
+      "height": 4096,
+      "quality": "master",
+      "bytes": 123600,
+      "sha256": "7a22150d52834d3ecf760d558c805a5f4f1ce566a3cdeee47dc27c604fdf7378",
+      "source": "assets/build_v4.py",
+      "license": "original-repository-art"
+    },
+    "skyHeading": 140,
+    "legacy": {
+      "panorama": "assets/v2/nereid-{face}.webp",
+      "surface": "assets/v2/gas-4k.webp"
+    }
+  },
+  "selene": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/selene-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 37520,
+        "sha256": "4605a4d0ad10434dd7b66d3d11de2b7f5dc94176d880f85bb5027645c2874787",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/selene-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 44620,
+        "sha256": "1b058c81657658272b917587d5b9d31801aa3141b27144a1723977510fbfdedf",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.62,
+      0.42,
+      -0.64
+    ],
+    "legacy": {
+      "panorama": "assets/v2/selene-{face}.webp",
+      "surface": "assets/v2/ice-4k.webp"
+    }
+  },
+  "eos": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/eos-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 38598,
+        "sha256": "a926c33934b9c35a7319bf64dcda85668f6a7edae2a3171c0b027ee74d7d52bf",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/eos-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 46466,
+        "sha256": "d2988bf34a8ab2ad0a53af22145c2ca5bba6d0f9e02aca4f010dcb8abd50e449",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.58,
+      0.49,
+      -0.61
+    ],
+    "legacy": {
+      "panorama": "assets/v2/eos-{face}.webp",
+      "surface": "assets/v2/rock-4k.webp"
+    }
+  },
+  "deep": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/deep-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 40918,
+        "sha256": "7f593e00721dc2af769a6971276f73556d83b192dc265314faa650dc8486de02",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/deep-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 51504,
+        "sha256": "6759cdc486cfbed65e2e111b3e2ad6d38367df20e1e50bc1a35b4105d1e4ed10",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "high": {
+        "path": "assets/v4/deep-high.cube",
+        "width": 2048,
+        "height": 2048,
+        "quality": "high",
+        "bytes": 117984,
+        "sha256": "2260daa9fabd633ba6ea2455f87d5e6f439eb209c3d4ac73b1c87e33ab84a15e",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "ultra": {
+        "path": "assets/v4/deep-ultra.cube",
+        "width": 4096,
+        "height": 4096,
+        "quality": "ultra",
+        "bytes": 346038,
+        "sha256": "422b3611714f1a702e2008bc2fa12eb1840736aa0a6d1a58823e36e631f12048",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.54,
+      0.56,
+      -0.58
+    ],
+    "master": {
+      "path": "assets/v4/deep-master.webp",
+      "width": 8192,
+      "height": 4096,
+      "quality": "master",
+      "bytes": 140094,
+      "sha256": "97b32880354b5d8d1ca07b69e8ceee2e1b4a7c0bd3e7c32945124603287a946a",
+      "source": "assets/build_v4.py",
+      "license": "original-repository-art"
+    },
+    "skyHeading": 120,
+    "legacy": {
+      "panorama": "assets/v2/deep-{face}.webp",
+      "surface": null
+    }
+  },
+  "gaia": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/gaia-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 38272,
+        "sha256": "b34d2f351520dba284b934f79504637994226c641167ffd2f79d00bb6b8f7be4",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/gaia-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 45320,
+        "sha256": "0e2d732379bf443cf5b66e75c9cd841b5002afc27ea0470ac432200dc923b53e",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "high": {
+        "path": "assets/v4/gaia-high.cube",
+        "width": 2048,
+        "height": 2048,
+        "quality": "high",
+        "bytes": 102924,
+        "sha256": "b2e9b0a3b67bd4d8d3a0e4c694539e2437702f5bc40952e85d7c932cf875c969",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "ultra": {
+        "path": "assets/v4/gaia-ultra.cube",
+        "width": 4096,
+        "height": 4096,
+        "quality": "ultra",
+        "bytes": 304356,
+        "sha256": "d41b37641f9cf0349b4c223f52435a818599f22c9032c91befe96c3523d1af44",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.5,
+      0.63,
+      -0.55
+    ],
+    "surface": {
+      "path": "assets/v4/gaia-surface.webp",
+      "width": 4096,
+      "height": 2048,
+      "quality": "surface",
+      "bytes": 372084,
+      "sha256": "d6c95ddd1e157e5bee26b675ddde6ab05297cd3b74e5a0aee32933199d6eff53",
+      "source": "assets/build_v4.py",
+      "license": "original-repository-art"
+    },
+    "master": {
+      "path": "assets/v4/gaia-master.webp",
+      "width": 8192,
+      "height": 4096,
+      "quality": "master",
+      "bytes": 124986,
+      "sha256": "28a54dda1c340c395d6c632382f6d64da3123744b7f3301d814ca47c051c45da",
+      "source": "assets/build_v4.py",
+      "license": "original-repository-art"
+    },
+    "legacy": {
+      "panorama": "assets/v2/gaia-{face}.webp",
+      "surface": "assets/v2/earth-4k.webp"
+    }
+  },
+  "solaris": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/solaris-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 37618,
+        "sha256": "b8509e5803d2ee41cd65f3921d38390d3c16a13c7ea5b54db0bab80eaf2aaae3",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/solaris-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 45314,
+        "sha256": "0c87f48e8f4d8f779710aad49184b149aa61bc9ef6639e2e66be2d2f82b822ca",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.46,
+      0.35,
+      -0.52
+    ],
+    "legacy": {
+      "panorama": "assets/v2/solaris-{face}.webp",
+      "surface": "assets/v2/star-4k.webp"
+    }
+  },
+  "singularity": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/singularity-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 37120,
+        "sha256": "629b2f832e974feff63e750ad2097de7f158564472b47e2f8895e4225863ced9",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/singularity-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 45072,
+        "sha256": "7ddc7eb8de8e2d635984cfac38719c6664d1d45f27f922b9722d4a38a9521a05",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.42,
+      0.42,
+      -0.49
+    ],
+    "legacy": {
+      "panorama": "assets/v2/singularity-{face}.webp",
+      "surface": null
+    }
+  },
+  "belt": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/belt-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 36778,
+        "sha256": "055333014c915dc6cf5bd24c49714be72f95a3d6fbd9f65bdde8eaa91dce26c3",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/belt-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 42828,
+        "sha256": "0a541a542bea5b79b90555462197281ee6ed6c33e799d6afea5389bf8ca58eb6",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.66,
+      0.49,
+      -0.46
+    ],
+    "legacy": {
+      "panorama": "assets/v2/belt-{face}.webp",
+      "surface": "assets/v2/rock-4k.webp"
+    }
+  },
+  "nebula": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/nebula-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 45532,
+        "sha256": "b7af96ce6168d7ef110b583f9e06a83db25834955ceac5b28a5656615614aecd",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/nebula-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 62542,
+        "sha256": "8a84ff66a91f2f18d1b46ac0e18676aae6e36073713b7df230c15c53e1d9b7ec",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "high": {
+        "path": "assets/v4/nebula-high.cube",
+        "width": 2048,
+        "height": 2048,
+        "quality": "high",
+        "bytes": 146438,
+        "sha256": "95249cf2d127a86152ab71e4924711cbd9a254b9ab9229dddfc5ecd6038ad666",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "ultra": {
+        "path": "assets/v4/nebula-ultra.cube",
+        "width": 4096,
+        "height": 4096,
+        "quality": "ultra",
+        "bytes": 435930,
+        "sha256": "da1dc2792112960de4a825e8bd1067a7a518135ce4e7c66cb210ffb610da24f0",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.62,
+      0.56,
+      -0.67
+    ],
+    "master": {
+      "path": "assets/v4/nebula-master.webp",
+      "width": 8192,
+      "height": 4096,
+      "quality": "master",
+      "bytes": 174834,
+      "sha256": "c649e5bd501beff767e76a378a3073e883b06200814e7316d6f814b2f0c337f3",
+      "source": "assets/build_v4.py",
+      "license": "original-repository-art"
+    },
+    "skyHeading": -60,
+    "legacy": {
+      "panorama": "assets/v2/nebula-{face}.webp",
+      "surface": null
+    }
+  },
+  "helion": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/helion-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 38864,
+        "sha256": "3f894a3bede40cc5d9dc47b41b9722f5b92707f710147ff9c991b42701a3dfdf",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/helion-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 46330,
+        "sha256": "82ef4f50284e0fb74d3459729ca0b369f263db480ad226a8dac0fca6cb0a6688",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.58,
+      0.63,
+      -0.64
+    ],
+    "legacy": {
+      "panorama": "assets/v2/solaris-{face}.webp",
+      "surface": "assets/v2/star-4k.webp"
+    }
+  },
+  "kallisto": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/kallisto-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 37736,
+        "sha256": "0753c6ee901b8a8af952d042aa51316c14fea23cfe61391ec611eaa1ff121fb9",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/kallisto-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 45194,
+        "sha256": "2eb525dda80e366f465bd52f80221e2b4ca4780c8923b7d1035e6ba448499a64",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.54,
+      0.35,
+      -0.61
+    ],
+    "legacy": {
+      "panorama": "assets/v2/solaris-{face}.webp",
+      "surface": "assets/v2/star-4k.webp"
+    }
+  },
+  "velaris": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/velaris-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 38924,
+        "sha256": "91dcb4071c9e7b2cbc90f784e121c1bbd6dc1c74133e4c53cfd487d65034364f",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/velaris-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 45154,
+        "sha256": "dd23f745ab5be4115e4215c31eedc2df692f8b8a593d23c46c08fc2e9296abe9",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.5,
+      0.42,
+      -0.58
+    ],
+    "legacy": {
+      "panorama": "assets/v2/solaris-{face}.webp",
+      "surface": "assets/v2/star-4k.webp"
+    }
+  },
+  "sereph": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/sereph-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 38034,
+        "sha256": "2f5cd55ce60033b93137c1a362746cb212847ac3fe94f4c09d8b77e28427af33",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/sereph-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 46140,
+        "sha256": "cc76c5bb44acdff3e9dfed4ca7f2e82ec6efc274bba3c397449427e262c3ee8f",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.46,
+      0.49,
+      -0.55
+    ],
+    "legacy": {
+      "panorama": "assets/v2/solaris-{face}.webp",
+      "surface": "assets/v2/star-4k.webp"
+    }
+  },
+  "cinder": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/cinder-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 37276,
+        "sha256": "e8d2627a16c227a673916d2adedca6b9eb6bf883ce91b5392cdd6ff7162df371",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/cinder-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 45932,
+        "sha256": "2f10c736d2cf663d2c09797d775097d4fed446402f9eafd729f99de27aa1893d",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.42,
+      0.56,
+      -0.52
+    ],
+    "legacy": {
+      "panorama": "assets/v2/solaris-{face}.webp",
+      "surface": "assets/v2/star-4k.webp"
+    }
+  },
+  "thalassa": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/thalassa-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 37588,
+        "sha256": "169044559fb6255faf07930e5eb140578c36e402ed4b39a26380919733699e6c",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/thalassa-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 44748,
+        "sha256": "5b932e542e6122282dc3e5ff027a8229d2313bfa6728d752a0856f31ccf6785b",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.66,
+      0.63,
+      -0.49
+    ],
+    "legacy": {
+      "panorama": "assets/v2/gaia-{face}.webp",
+      "surface": "assets/v2/earth-4k.webp"
+    }
+  },
+  "verdant": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/verdant-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 37764,
+        "sha256": "6af94eb3d6b48ede98c4294e870117831aafe50a791be723d6460f36a8b0bd9f",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/verdant-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 44734,
+        "sha256": "cdfb43cc890aabd50d157a97cddd9e1bf36099bd7a41c195f5866034c516394b",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.62,
+      0.35,
+      -0.46
+    ],
+    "legacy": {
+      "panorama": "assets/v2/gaia-{face}.webp",
+      "surface": "assets/v2/earth-4k.webp"
+    }
+  },
+  "vespera": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/vespera-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 39046,
+        "sha256": "e39f997c10bb8b07b274c0a2b1a07682da03d53b46034bd8d85aeacab252b83c",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/vespera-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 47852,
+        "sha256": "b2f049a43429e3768d25dcb9b6c5cdcfff0caefc24cd387b1a1f28863c008295",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.58,
+      0.42,
+      -0.67
+    ],
+    "legacy": {
+      "panorama": "assets/v2/eos-{face}.webp",
+      "surface": "assets/v2/rock-4k.webp"
+    }
+  },
+  "cryon": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/cryon-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 38098,
+        "sha256": "78bdbd131349e86853e12d0bb4e348b2a772ccbfb6fd60d316b404f1f34351b0",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/cryon-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 44840,
+        "sha256": "2f93426dab5855df2324b33bbdfa918e932ddfe9466723516fd80bccbb0b528e",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.54,
+      0.49,
+      -0.64
+    ],
+    "legacy": {
+      "panorama": "assets/v2/selene-{face}.webp",
+      "surface": "assets/v2/ice-4k.webp"
+    }
+  },
+  "mistral": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/mistral-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 36424,
+        "sha256": "e1698d23b1a0a7653b6317a07b0c1face92ec05086707227a71783dffc4804b1",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/mistral-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 44736,
+        "sha256": "f674b6e4ba90365f1d9f59e3ffe266b119655057797f12357afc80d8934a5e2a",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.5,
+      0.56,
+      -0.61
+    ],
+    "legacy": {
+      "panorama": "assets/v2/nereid-{face}.webp",
+      "surface": "assets/v2/gas-4k.webp"
+    }
+  },
+  "aurum": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/aurum-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 37072,
+        "sha256": "f0adeccbca3a5eb17f798930d72864be7d5a82bf413299df68375549e17d965f",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/aurum-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 45548,
+        "sha256": "7293d22e3d0144299a519faa5451d30e90be5c0188bc6f5cabdbc311059fac9f",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.46,
+      0.63,
+      -0.58
+    ],
+    "legacy": {
+      "panorama": "assets/v2/nereid-{face}.webp",
+      "surface": "assets/v2/gas-4k.webp"
+    }
+  },
+  "obsidian": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/obsidian-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 38136,
+        "sha256": "87293bcf5bb171a0661131540196684aeaabca94560c9c25a9d06cdaf918fcc4",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/obsidian-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 45806,
+        "sha256": "ab00a4faecaea9362bb201cdd4c201a090ff02233cf13ec79b281261139098d6",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.42,
+      0.35,
+      -0.55
+    ],
+    "legacy": {
+      "panorama": "assets/v2/eos-{face}.webp",
+      "surface": "assets/v2/rock-4k.webp"
+    }
+  },
+  "eirene": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/eirene-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 38356,
+        "sha256": "541660bffb13280090876d5fc149e500051795668b79503b229b6c3dfbfc2648",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/eirene-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 45382,
+        "sha256": "29c402d216c0e87b01ab5099f6d2c639e96ee585a60d06b3f1a0d65fcf899b12",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.66,
+      0.42,
+      -0.52
+    ],
+    "legacy": {
+      "panorama": "assets/v2/selene-{face}.webp",
+      "surface": "assets/v2/ice-4k.webp"
+    }
+  },
+  "emberrift": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/emberrift-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 41580,
+        "sha256": "cb1587b060ed56aec27ce4e931b2fd725713f0651a7abf27fb6855464df1f3f6",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/emberrift-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 53984,
+        "sha256": "f39086a7ac24a0d5c12fd8151ceb2aa0d51c19cc8629a43312b02470846ed575",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.62,
+      0.49,
+      -0.49
+    ],
+    "legacy": {
+      "panorama": "assets/v2/belt-{face}.webp",
+      "surface": "assets/v2/rock-4k.webp"
+    }
+  },
+  "glacier": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/glacier-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 38156,
+        "sha256": "6ee798c9c0932ee8ef0659c01904586d8a8856afc704822e5c3a017f1ab475aa",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/glacier-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 44596,
+        "sha256": "6e003784d422b7db9e4e9221a1f56f8074809e1f83efa1ae07c12e267790019e",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.58,
+      0.56,
+      -0.46
+    ],
+    "legacy": {
+      "panorama": "assets/v2/belt-{face}.webp",
+      "surface": "assets/v2/ice-4k.webp"
+    }
+  },
+  "wanderer": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/wanderer-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 37962,
+        "sha256": "f003c5d9d3ac191e560eafb7134bf88e97e614d2f39426d79b9dd00ce4ef45fc",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/wanderer-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 45762,
+        "sha256": "b6d8c5378838916ad82fc61551bd1993072070c5a4e45be833a7b518caede875",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.54,
+      0.63,
+      -0.67
+    ],
+    "legacy": {
+      "panorama": "assets/v2/eos-{face}.webp",
+      "surface": "assets/v2/rock-4k.webp"
+    }
+  },
+  "undertow": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/undertow-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 36980,
+        "sha256": "f70e74de512c40c574cf5b584b186bb520b8f6221414d9985a5dbad54d68c95b",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/undertow-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 44060,
+        "sha256": "87de04ab8c8a769c8fef8209e8b7967e6aaa1bdeb17e03d4f76d6eafe8c4a65a",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.5,
+      0.35,
+      -0.64
+    ],
+    "legacy": {
+      "panorama": "assets/v2/singularity-{face}.webp",
+      "surface": null
+    }
+  },
+  "hush": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/hush-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 40844,
+        "sha256": "e0b9faa64fb8345ba08ceb62129db90d2e43bfcc17f9fc30db58c5d4715d2569",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/hush-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 53094,
+        "sha256": "0724df73abc2af2bdb313b33439a75090f0cfcde4f29b8873d673ebe78312d65",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.46,
+      0.42,
+      -0.61
+    ],
+    "legacy": {
+      "panorama": "assets/v2/selene-{face}.webp",
+      "surface": "assets/v2/ice-4k.webp"
+    }
+  },
+  "halogate": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/halogate-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 38362,
+        "sha256": "e3d664e165a81ea9c22564b5db199968adf075a3077242738e0c1f24d71ddeed",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/halogate-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 45404,
+        "sha256": "da7411c0b904bee29c89664f7b14ef8b1bb93f06468b4a63d040861d9c78af9e",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "high": {
+        "path": "assets/v4/halogate-high.cube",
+        "width": 2048,
+        "height": 2048,
+        "quality": "high",
+        "bytes": 102744,
+        "sha256": "2e0c27a56e506409a8713e8672f1e9498395fc42628d46954b01e2259edb382d",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "ultra": {
+        "path": "assets/v4/halogate-ultra.cube",
+        "width": 4096,
+        "height": 4096,
+        "quality": "ultra",
+        "bytes": 303450,
+        "sha256": "75b47b6a054d6b43a3de79ec570360445e5a2811361d2bcbb81c53219af36935",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.42,
+      0.49,
+      -0.58
+    ],
+    "master": {
+      "path": "assets/v4/halogate-master.webp",
+      "width": 8192,
+      "height": 4096,
+      "quality": "master",
+      "bytes": 124638,
+      "sha256": "d53394267256f4adcd709281393b5249136819e8eec5d054848544d332e90f0a",
+      "source": "assets/build_v4.py",
+      "license": "original-repository-art"
+    },
+    "skyHeading": 70,
+    "legacy": {
+      "panorama": "assets/v2/deep-{face}.webp",
+      "surface": null
+    }
+  },
+  "silentarray": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/silentarray-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 38692,
+        "sha256": "642d6f8125d1b2295fde50d0d6680a536330b6f9091d71f1595d2e98f27a5da4",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/silentarray-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 46194,
+        "sha256": "de4cda70bcb83f0ccbd75d3fd5203f46c8688ce6a78ab21485510d68f9893215",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.66,
+      0.56,
+      -0.55
+    ],
+    "legacy": {
+      "panorama": "assets/v2/deep-{face}.webp",
+      "surface": null
+    }
+  },
+  "ambervault": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/ambervault-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 37874,
+        "sha256": "9fde9f29692683f27d27f853d61243b866e0fbdf2009e6a2550c6133f395c999",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/ambervault-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 44946,
+        "sha256": "7743b6af6561c6f676f248da16699d83396e8d48d37dabce6fe0f5f02c93e163",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.62,
+      0.63,
+      -0.52
+    ],
+    "legacy": {
+      "panorama": "assets/v2/deep-{face}.webp",
+      "surface": null
+    }
+  },
+  "palimpsest": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/palimpsest-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 37438,
+        "sha256": "4297f759b9953e497a977cc9470ca066ba628c69dc95133bae24e6ce54d82cf9",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/palimpsest-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 45112,
+        "sha256": "77a41e516a54f55502c39b07639fad5f69e91dad2077ac9f2923e0eae6eb5fb0",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.58,
+      0.35,
+      -0.49
+    ],
+    "legacy": {
+      "panorama": "assets/v2/deep-{face}.webp",
+      "surface": null
+    }
+  },
+  "mirrorward": {
+    "faces": {
+      "low": {
+        "path": "assets/v4/mirrorward-low.cube",
+        "width": 512,
+        "height": 512,
+        "quality": "low",
+        "bytes": 37916,
+        "sha256": "53550f168aaef9d08ed4d6ced6e211f73861ebcfd7f085733fbd92d71215e3f6",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      },
+      "medium": {
+        "path": "assets/v4/mirrorward-medium.cube",
+        "width": 1024,
+        "height": 1024,
+        "quality": "medium",
+        "bytes": 45720,
+        "sha256": "941ab52c263849be2007ed61e77dd1c90a8384af7819341a7d2331a5a58575ba",
+        "source": "assets/build_v4.py",
+        "license": "original-repository-art"
+      }
+    },
+    "keyLight": [
+      -0.54,
+      0.42,
+      -0.46
+    ],
+    "legacy": {
+      "panorama": "assets/v2/deep-{face}.webp",
+      "surface": null
+    }
+  }
+}
