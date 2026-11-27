@@ -121,9 +121,12 @@ def pilot(browser, url):
 def voyage(browser,url):
     page, errors = boot(browser,url)
     page.keyboard.press("p")
+    hold(page,"d",4)
+    hold(page,"Space",18)
     page.select_option("#destinationSelect","4")
     advance(page)
     original = eye(page)
+    orientation = page.evaluate("skyUniform('rot')")
 
     pending=[]
     pattern="**/assets/v2/gaia-front.webp"
@@ -137,6 +140,7 @@ def voyage(browser,url):
     advance(page)
     expect(page.locator("#flightGuidance")).to_contain_text("출항 취소")
     assert eye(page)==original
+    assert page.evaluate("skyUniform('rot')")==orientation
     for route in pending:
         route.abort()
     page.unroute(pattern)
@@ -148,6 +152,7 @@ def voyage(browser,url):
     advance(page)
     expect(page.locator("#flightGuidance")).to_contain_text("항로 복구")
     assert eye(page)==original
+    assert page.evaluate("skyUniform('rot')")==orientation
     page.unroute(pattern)
 
     page.click("#flightNavigate")

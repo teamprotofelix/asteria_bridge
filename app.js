@@ -1151,13 +1151,23 @@ function updateFlightHud() {
   navigationMap.flightStatus(phase,plan?.target ?? dest,ring,state?.position);
 }
 
+function recoverFlightTravel(plan, cancelled) {
+  if (flightTravel!==plan) return;
+  plan.phase=cancelled ? 'ABORT' : 'RECOVER';
+  if (flight.state?.sectorId===plan.sectorId) {
+    flight.state.orientation=plan.orientation;
+    flight.brake();
+    cameraDirty=true;
+  }
+  flightTravel=null;
+  flightRecovery=cancelled ? '출항 취소 · 현재 구역 유지' : '항로 복구 · 현재 구역 유지';
+  updateWalkControls();
+}
+
 function cancelFlightTravel() {
   if (!flightTravel || warp) return;
   if (flightTravel.phase==='LOAD') assetRequest?.abort();
-  flightTravel.phase='ABORT';
-  flightTravel=null;
-  flightRecovery='출항 취소 · 현재 구역 유지';
-  updateWalkControls();
+  recoverFlightTravel(flightTravel,true);
 }
 function startFlightTravel() {
   if (flightTravel) {cancelFlightTravel();return;}
@@ -1166,7 +1176,8 @@ function startFlightTravel() {
   flightRecovery='';
   flight.assist('IDLE');
   flight.brake();
-  flightTravel={phase:'PLAN',target,deadline:performance.now()+1400};
+  flightTravel={phase:'PLAN',target,deadline:performance.now()+1400,
+    sectorId:flight.state.sectorId,orientation:[...flight.state.orientation]};
   updateWalkControls();
 }
 function enterFlight() {
@@ -1283,11 +1294,7 @@ async function engage(n = null, session = null, plan = null) {
     setTravelBusy(!!warp);
     if (!warp) {
       $('flightStatus').textContent = '순항 항해 중';
-      if (plan && flightTravel===plan) {
-        flightTravel=null;
-        flightRecovery='항로 복구 · 현재 구역 유지';
-        updateWalkControls();
-      }
+      if (plan) recoverFlightTravel(plan,false);
     }
   }
 }
