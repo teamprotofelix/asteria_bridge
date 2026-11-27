@@ -121,7 +121,8 @@ const AsteriaBridge = (() => {
       box([x-.33,.22,-4.806],[x+.33,.255,-4.798], trim);
       frames.push(data.length / 6);
     }
-    return {vertices: new Float32Array(data), frames};
+    const actor = AsteriaMarie.model(box, quad, () => data.length / 6);
+    return {vertices: new Float32Array(data), frames, actor};
   }
 
   const vertex = `
@@ -131,10 +132,19 @@ uniform vec3 eye;
 uniform mat3 basis;
 uniform vec2 scale;
 uniform float hatchOffset;
+uniform vec4 actorPose;
+uniform float walkingStep;
+uniform bool drawActor;
 varying vec3 color;
 varying vec3 point;
 void main() {
   vec3 world = position + vec3(hatchOffset, 0.0, 0.0);
+  if (drawActor) {
+    float c = cos(actorPose.w), s = sin(actorPose.w);
+    float step = walkingStep * (1.0 - clamp(position.y / .62, 0.0, 1.0));
+    vec3 local = position + vec3(0.0, max(0.0, -step)*.3, step);
+    world = vec3(c*local.x + s*local.z, local.y, -s*local.x + c*local.z) + actorPose.xyz;
+  }
   vec3 offset = world - eye;
   vec3 view = vec3(dot(basis[0], offset), dot(basis[1], offset), dot(basis[2], offset));
   gl_Position = vec4(view.xy / scale, view.z * 1.00753 - .15056, view.z);
@@ -153,7 +163,7 @@ void main() {
 }`;
 
   function bind(gl, program, check) {
-    const {vertices, frames} = mesh();
+    const {vertices, frames, actor} = mesh();
     const buffer = gl.createBuffer();
     if (!buffer) throw Error('WebGL bridge mesh allocation failed');
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -167,9 +177,11 @@ void main() {
 
     const position = gl.getAttribLocation(program, 'position');
     const tint = gl.getAttribLocation(program, 'tint');
-    const [eye, basis, scale, hatchOffset] = ['eye', 'basis', 'scale', 'hatchOffset'].map(name => gl.getUniformLocation(program, name));
+    const [eye, basis, scale, hatchOffset, actorPose, walkingStep, drawActor] =
+      ['eye', 'basis', 'scale', 'hatchOffset', 'actorPose', 'walkingStep', 'drawActor']
+        .map(name => gl.getUniformLocation(program, name));
     return {
-      draw(matrix, camera, xScale, yScale, hatch) {
+      draw(matrix, camera, xScale, yScale, hatch, pose) {
         gl.useProgram(program);
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
         gl.enableVertexAttribArray(position);
@@ -183,12 +195,26 @@ void main() {
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         const [left, right, end] = frames;
+        gl.uniform1i(drawActor, 0);
         gl.uniform1f(hatchOffset, 0);
         gl.drawArrays(gl.TRIANGLES, 0, left);
         gl.uniform1f(hatchOffset, -1.09*hatch);
         gl.drawArrays(gl.TRIANGLES, left, right - left);
         gl.uniform1f(hatchOffset, 1.09*hatch);
         gl.drawArrays(gl.TRIANGLES, right, end - right);
+        if (pose) {
+          const [body, leftLeg, rightLeg, tray] = actor;
+          const [x, z] = pose.point;
+          gl.uniform1i(drawActor, 1);
+          gl.uniform4f(actorPose, x, -1.77 + Math.abs(pose.step)*.018, z, pose.direction);
+          gl.uniform1f(walkingStep, 0);
+          gl.drawArrays(gl.TRIANGLES, end, body - end);
+          if (pose.tea) gl.drawArrays(gl.TRIANGLES, rightLeg, tray - rightLeg);
+          gl.uniform1f(walkingStep, pose.step*.14);
+          gl.drawArrays(gl.TRIANGLES, body, leftLeg - body);
+          gl.uniform1f(walkingStep, -pose.step*.14);
+          gl.drawArrays(gl.TRIANGLES, leftLeg, rightLeg - leftLeg);
+        }
         gl.disable(gl.DEPTH_TEST);
         gl.disableVertexAttribArray(position);
         gl.disableVertexAttribArray(tint);
