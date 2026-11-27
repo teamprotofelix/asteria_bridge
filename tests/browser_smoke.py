@@ -148,6 +148,109 @@ def test_fallbacks(browser, url):
     page.close()
 
 
+
+def test_upload_failure(browser, url):
+    for target in ("surface", "room", "destination"):
+        page = browser.new_page(reduced_motion="reduce")
+        errors = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.add_init_script("""
+            window.failUpload = %s;
+            const gl = WebGLRenderingContext.prototype;
+            const texImage2D = gl.texImage2D;
+            const getError = gl.getError;
+            const failures = new WeakSet();
+            gl.texImage2D = function (target, ...args) {
+                const layer = target === this.TEXTURE_2D ? 'surface'
+                    : this.canvas.id === 'roomView' ? 'room' : 'sky';
+                if (layer === window.failUpload) {
+                    window.failUpload = null;
+                    failures.add(this);
+                    return;
+                }
+                return texImage2D.call(this, target, ...args);
+            };
+            gl.getError = function () {
+                return failures.delete(this) ? this.OUT_OF_MEMORY : getError.call(this);
+            };
+        """ % repr(target))
+        page.goto(url)
+        if target == "destination":
+            expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 3D")
+            page.evaluate("window.failUpload = 'sky'")
+            travel(page, 8, "NEBULA", "RENDER / CANVAS 360°")
+        expect(page.locator("#renderMode")).to_have_text("RENDER / CANVAS 360°")
+        expect(page.locator("#approach")).to_be_hidden()
+        page.wait_for_function("""() => {
+            const sky = document.querySelector('#skyView');
+            if (sky.width <= 300) return false;
+            return sky.getContext('2d').getImageData(0, 0, sky.width, sky.height).data
+                .some((channel, index) => channel > 0 && index % 4 !== 3);
+        }""")
+        assert page.evaluate("window.failUpload === null")
+        travel(page, 3, "DEEP SPACE", "RENDER / CANVAS 360°")
+        assert not errors, errors
+        page.close()
+
+
+def test_startup_retry(browser, url):
+    page = browser.new_page(reduced_motion="reduce")
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    attempts = []
+
+    def fail_twice(route):
+        attempts.append(route.request.url)
+        if len(attempts) <= 2:
+            route.abort()
+        else:
+            route.continue_()
+
+    page.route("**/bridge-front.webp*", fail_twice)
+    page.goto(url)
+    page.evaluate("window.samePage = true")
+    retry = page.locator("#retryStartup")
+    for _ in range(2):
+        expect(page.locator("#startupStatus")).to_have_text("관측창 에셋을 불러오지 못했습니다.")
+        expect(page.locator("#travel")).to_be_disabled()
+        retry.click()
+    expect(page.locator("#startupPanel")).to_be_hidden()
+    expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 3D")
+    assert page.evaluate("window.samePage === true")
+    assert len(attempts) == 3 and all("?retry=" in url for url in attempts[1:])
+    travel(page, 1, "SELENE", "RENDER / WEBGL 3D")
+    assert not errors, errors
+    page.close()
+
+
+def test_adaptive_quality(browser, url):
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.add_init_script("""
+        // Drive frame pacing independently of the software GPU. Other cases
+        // exercise actual draws; this one checks the canvas resolution.
+        let pendingFrame;
+        let time = performance.now();
+        window.requestAnimationFrame = callback => { pendingFrame = callback; };
+        WebGLRenderingContext.prototype.drawArrays = () => {};
+        window.advanceFrames = (count, milliseconds) => {
+            for (let frame = 0; frame < count; frame++) {
+                time += milliseconds;
+                pendingFrame(time);
+            }
+            return document.querySelector('#skyView').width;
+        };
+    """)
+    page.goto(url)
+    expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 3D")
+    assert page.evaluate("advanceFrames(1, 16.67)") == 1080
+    assert page.evaluate("advanceFrames(25, 34)") == 864
+    assert 1080 < page.evaluate("advanceFrames(335, 16.67)") <= 1440
+    expect(page.locator("#approach")).to_be_visible()
+    assert not errors, errors
+    page.close()
+
 def main():
     handler = partial(QuietHandler, directory=ROOT.parent)
     with ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
@@ -163,6 +266,12 @@ def main():
                 test_desktop(browser, url)
                 test_mobile(browser, url)
                 test_fallbacks(browser, url)
+                test_upload_failure(browser, url)
+                print("PASS: Texture OOM on surface, bridge and destination cubemap", flush=True)
+                test_startup_retry(browser, url)
+                print("PASS: Repeated startup failure and in-page recovery", flush=True)
+                test_adaptive_quality(browser, url)
+                print("PASS: Adaptive 3D resolution decrease and recovery above 1080 px", flush=True)
                 browser.close()
         finally:
             server.shutdown()

@@ -199,16 +199,21 @@ void main() {
 }
 `;
 
-  function bind(gl, program) {
+  function bind(gl, program, checkTextureUpload) {
     const names = ['surface', 'bodies[0]', 'eye', 'spin', 'atmosphere', 'ring', 'ringInner', 'kind'];
     const uniforms = Object.fromEntries(names.map(name => [name, gl.getUniformLocation(program, name)]));
     let texture = null;
     let activeScene = null;
 
-    function upload(image, scene) {
+    function clear() {
       if (texture) gl.deleteTexture(texture);
+      texture = activeScene = null;
+    }
+
+    function upload(image, scene) {
+      clear();
       texture = gl.createTexture();
-      activeScene = scene;
+      if (!texture) throw Error('WebGL surface texture allocation failed');
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, texture);
       if (image) {
@@ -229,6 +234,8 @@ void main() {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      checkTextureUpload(gl, 'surface texture');
+      activeScene = scene;
     }
 
     function draw(elapsed, approach) {
@@ -249,7 +256,7 @@ void main() {
       gl.uniform1i(uniforms.kind, scene.blackHole ? 2 : scene.emissive ? 1 : scene.belt ? 3 : 0);
     }
 
-    return { upload, draw };
+    return { upload, draw, clear };
   }
 
   return { scenes, sample, fragment, bind };

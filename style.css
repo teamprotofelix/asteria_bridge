@@ -33,3 +33,20 @@
   margin: 0;
   accent-color: var(--cyan);
 }
+
+#startupPanel {
+  position: absolute;
+  z-index: 10;
+  top: 30%;
+  inset-inline: 0;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  margin-inline: auto;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #07111e;
+  text-align: center;
+}
+#startupStatus { margin: 0; }
+#retryStartup { margin-top: 10px; }
