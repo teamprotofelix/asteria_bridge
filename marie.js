@@ -14,6 +14,9 @@ const AsteriaMarie = (() => {
     flare: '항성 플레어 감지. 보호막 보강을 권장합니다.',
     ring: '고리 파편층 진입. 항로와 보호막을 확인합니다.',
     dust: '먼지 구름 진입. 광학 필터 보정을 권장합니다.',
+    stellarFlare: '항성 플레어 감지. 안전 거리와 보호막을 확인합니다.',
+    pulsar: '펄서 빔 감지. 센서 감쇠를 권장합니다.',
+    nebulaTurbulence: '성운 난기류 감지. 관측 필터 보정을 권장합니다.',
   };
 
   function create(sectors, reduced) {

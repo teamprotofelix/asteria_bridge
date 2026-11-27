@@ -20,6 +20,17 @@ jobs:
           python3 -m venv .qa-venv
           .qa-venv/bin/pip install playwright==1.62.0
           .qa-venv/bin/python -m playwright install --with-deps chromium
+      - name: Verify free flight and the expanded event catalog
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: .qa-venv/bin/python tests/flight_pr12.py
+      - name: Upload free flight and event captures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: flight-pr12-captures
+          path: flight-pr12-captures
+          if-no-files-found: ignore
       - name: Check Marie rig, crew actions and mobile fallback
         env:
           PYTHONDONTWRITEBYTECODE: '1'
