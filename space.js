@@ -53,6 +53,18 @@ const AsteriaSpace = (() => {
     };
   }
 
+  function surfaceDistance(scene, { spheres, eye }) {
+    let distance = Infinity;
+    const count = scene.belt ? bodyCount : 1;
+    for (let i = 0; i < count * 4; i += 4) {
+      const radius = spheres[i + 3];
+      if (radius <= 0) continue;
+      const centerDistance = Math.hypot(eye[0] - spheres[i], eye[1] - spheres[i + 1], eye[2] - spheres[i + 2]);
+      distance = Math.min(distance, centerDistance - radius);
+    }
+    return Math.max(0, distance);
+  }
+
   const fragment = `
 precision highp float;
 varying vec2 uv;
@@ -240,7 +252,8 @@ void main() {
 
     function draw(elapsed, approach) {
       const scene = activeScene;
-      const { spheres, eye, spin } = sample(scene, elapsed, approach);
+      const position = sample(scene, elapsed, approach);
+      const { spheres, eye, spin } = position;
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, texture);
       gl.uniform1i(uniforms.surface, 1);
@@ -254,6 +267,7 @@ void main() {
       gl.uniform4f(uniforms.ring, ...normal.map(value => value / length), ring?.outer ?? 0);
       gl.uniform1f(uniforms.ringInner, ring?.inner ?? 0);
       gl.uniform1i(uniforms.kind, scene.blackHole ? 2 : scene.emissive ? 1 : scene.belt ? 3 : 0);
+      return surfaceDistance(scene, position);
     }
 
     return { upload, draw, clear };
