@@ -581,6 +581,21 @@ destinations.forEach(([, , description, , group = 'legacy'], index) => {
   optionsByGroup.get(group).append(new Option(description, index));
 });
 
+const navigationMap = AsteriaNavigationMap.create(destinations, groups, {
+  select(index) {
+    if (loading || warp) return;
+    $('destinationSelect').value = String(index);
+    navigationMap.select(index);
+  },
+  travel: index => engage(index),
+});
+$('mapOpen').onclick = () => {
+  keys.clear();
+  drag = null;
+  navigationMap.open();
+};
+$('destinationSelect').addEventListener('change', event => navigationMap.select(Number(event.target.value)));
+
 setDest(0);
 let startupAttempt = 0;
 async function startBridge() {
@@ -596,6 +611,8 @@ async function startBridge() {
     uploadSky(sky);
     uploadRoom(images);
     ready = true;
+    navigationMap.arrive(dest);
+    $('mapOpen').disabled = false;
     updateRendererLabel();
     $('startupPanel').hidden = true;
     $('warp').disabled = $('travel').disabled = $('destinationSelect').disabled = false;
@@ -608,6 +625,7 @@ async function startBridge() {
     $('flightStatus').textContent = '관측창 로딩 실패';
   } finally {
     loading = false;
+    navigationMap.setBusy(!ready);
     updateWalkControls();
     updateRouteControls();
   }
@@ -699,7 +717,43 @@ if(e.type==='signal'){let a=project(1.2,.7,3);if(a){ctx.strokeStyle=`rgba(110,25
 }
 function drawRadar(t){let r=radar;r.clearRect(0,0,160,160);r.save();r.translate(80,80);r.strokeStyle='#305166';r.lineWidth=1;for(let i=1;i<=4;i++){r.beginPath();r.arc(0,0,i*17,0,7);r.stroke();}r.beginPath();r.moveTo(-68,0);r.lineTo(68,0);r.moveTo(0,-68);r.lineTo(0,68);r.stroke();let a=t*.9;let g=r.createRadialGradient(0,0,0,0,0,68);g.addColorStop(0,'#6deeea00');g.addColorStop(1,'#6deeea15');r.fillStyle=g;r.beginPath();r.moveTo(0,0);r.arc(0,0,68,a-.65,a);r.closePath();r.fill();r.strokeStyle='#69e3df';r.beginPath();r.moveTo(0,0);r.lineTo(Math.cos(a)*68,Math.sin(a)*68);r.stroke();for(let i=0;i<5;i++){let angle=i*2.5+dest*.4-yaw*rad,dist=17+i*10;r.fillStyle=event&&i===0?'#ffbf76':'#79e2dc';r.beginPath();r.arc(Math.cos(angle)*dist,Math.sin(angle)*dist,i===0?3:1.8,0,7);r.fill();}r.fillStyle='#d8ffff';r.fillRect(-2,-2,4,4);r.restore();}
 function updateSpeed(wa=0){$('throttlePct').textContent=Math.round(throttle)+'%';$('power').textContent=Math.round(throttle)+'%';$('powerBar').style.width=throttle+'%';$('speedRead').textContent=wa>.2?(1+wa*8).toFixed(2):(throttle*.0068).toFixed(2);if(audioGain){audioGain.gain.setTargetAtTime(sound?.015+throttle*.0003+wa*.035:0,audioCtx.currentTime,.2);audioOsc.frequency.setTargetAtTime(39+throttle*.3+wa*40,audioCtx.currentTime,.2);}}
-async function engage(n=null){if(warp||loading)return;if(!ready){notify('초기 우주 에셋 준비 중입니다.');return;}setWalking(false);loading=true;updateWalkControls();stopRoute();$('warp').disabled=$('travel').disabled=$('destinationSelect').disabled=true;$('flightStatus').textContent='항로 계산 중';try{let images=n!==null&&n!==dest?await loadSky(n):null;if(event)endEvent();warp={start:performance.now(),next:n,changed:false,images};$('warp').classList.add('engaged');$('warp').querySelector('b').textContent='워프 진행 중';$('flightStatus').textContent='워프 항해 중';$('modeLabel').textContent='WARP DRIVE';notify(n===null?'워프 드라이브 가동':destinations[n][1]+' 항로 설정 · 워프 개시');}catch(e){notify('목적지 이미지 로드 실패. 현재 구역 유지.');$('warp').disabled=$('travel').disabled=$('destinationSelect').disabled=false;$('flightStatus').textContent='순항 항해 중';}finally{loading=false;updateWalkControls();updateRouteControls();}}
+async function engage(n = null) {
+  if (warp || loading) return;
+  if (!ready) {
+    notify('초기 우주 에셋 준비 중입니다.');
+    return;
+  }
+  setWalking(false);
+  loading = true;
+  navigationMap.setBusy(true);
+  updateWalkControls();
+  stopRoute();
+  $('warp').disabled = $('travel').disabled = $('destinationSelect').disabled = true;
+  $('flightStatus').textContent = '항로 계산 중';
+  try {
+    const images = n !== null && n !== dest ? await loadSky(n) : null;
+    if (event) endEvent();
+    warp = {start: performance.now(), next: n, changed: false, images};
+    navigationMap.begin(n);
+    $('warp').classList.add('engaged');
+    $('warp').querySelector('b').textContent = '워프 진행 중';
+    $('flightStatus').textContent = '워프 항해 중';
+    $('modeLabel').textContent = 'WARP DRIVE';
+    notify(n === null ? '워프 드라이브 가동' : destinations[n][1] + ' 항로 설정 · 워프 개시');
+  } catch (error) {
+    const message = '목적지 이미지 로드 실패. 현재 구역 유지.';
+    navigationMap.fail(message);
+    notify(message);
+    $('warp').disabled = $('travel').disabled = $('destinationSelect').disabled = false;
+    $('flightStatus').textContent = '순항 항해 중';
+  } finally {
+    loading = false;
+    navigationMap.setBusy(!!warp);
+    updateWalkControls();
+    updateRouteControls();
+  }
+}
+
 function eventContext() {
   const [id, , , , group] = destinations[dest];
   const scene = AsteriaSpace.scenes[id];
@@ -807,6 +861,7 @@ $('sound').onclick=async()=>{try{if(!audioCtx){let AC=window.AudioContext||windo
 const view=$('view');view.addEventListener('pointerdown',e=>{if(e.button!==0)return;setAuto(false);view.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,id:e.pointerId};view.setPointerCapture(e.pointerId);});view.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;turnView(-(e.clientX-drag.x)*.19,(e.clientY-drag.y)*.19);drag.x=e.clientX;drag.y=e.clientY;});for(let ev of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(ev,()=>drag=null);view.addEventListener('dblclick',reset);view.addEventListener('wheel',e=>{e.preventDefault();zoomBy(-Math.sign(e.deltaY)*.08);},{passive:false});
 const map={arrowup:'w',arrowdown:'s',arrowleft:'a',arrowright:'d'}, editable=el=>el&&['INPUT','SELECT','TEXTAREA'].includes(el.tagName);
 window.addEventListener('keydown', e => {
+  if ($('mapDialog').open) return;
   if (e.key === 'Escape') {
     if (cinema) setCinema(false);
     if (walking) setWalking(false);
@@ -862,7 +917,7 @@ if (walking) {
   turnView(step*(Number(keys.has('d')) - Number(keys.has('a'))) + automatic,
     step*(Number(keys.has('w')) - Number(keys.has('s'))), bank);
 }
-let wa=0;if(warp){let p=(now-warp.start)/3800;wa=reduced?0:clamp(Math.min(p*5,(1-p)*4),0,1);if(p>.48&&!warp.changed){warp.changed=true;if(warp.next!==null)setDest(warp.next,warp.images);reset();}if(p>=1){warp=null;wa=0;updateWalkControls();updateRouteControls();$('warp').classList.remove('engaged');$('warp').querySelector('b').textContent='워프 항해';$('warp').disabled=$('travel').disabled=$('destinationSelect').disabled=false;$('flightStatus').textContent='순항 항해 중';$('modeLabel').textContent='SUBLIGHT DRIVE';notify('워프 종료 · 관측 구역 도착');}updateSpeed(wa);}$('warpGlow').style.opacity=wa*.8;
+let wa=0;if(warp){let p=(now-warp.start)/3800;navigationMap.progress(clamp(p,0,1));wa=reduced?0:clamp(Math.min(p*5,(1-p)*4),0,1);if(p>.48&&!warp.changed){warp.changed=true;if(warp.next!==null)setDest(warp.next,warp.images);reset();}if(p>=1){warp=null;wa=0;navigationMap.arrive(dest);navigationMap.setBusy(false);updateWalkControls();updateRouteControls();$('warp').classList.remove('engaged');$('warp').querySelector('b').textContent='워프 항해';$('warp').disabled=$('travel').disabled=$('destinationSelect').disabled=false;$('flightStatus').textContent='순항 항해 중';$('modeLabel').textContent='SUBLIGHT DRIVE';notify('워프 종료 · 관측 구역 도착');}updateSpeed(wa);}$('warpGlow').style.opacity=wa*.8;
 advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);let bearing=(yaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(pitch>=0?'+':'')+pitch.toFixed(1)+'°';$('rollRead').textContent=(roll>=0?'+':'')+roll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}requestAnimationFrame(frame);}
 window.addEventListener('resize',resize);if(window.ResizeObserver)new ResizeObserver(layoutControls).observe(document.querySelector('.console'));resize();updateSpeed();requestAnimationFrame(frame);
 })();
