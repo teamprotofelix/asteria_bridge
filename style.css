@@ -354,3 +354,17 @@
   color: #ddf0f3;
   background: #10202f;
 }
+
+#qualityOpen {
+  min-height: 24px;
+  padding: 2px 6px;
+  border: 1px solid #3b6575;
+  border-radius: 3px;
+  background: #102736;
+  color: #c2e8ea;
+  font: inherit;
+}
+#qualityDialog select { min-height: 40px; margin-inline-start: 4px; color: var(--ink); background: #132b3c; }
+.quality-stats { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; }
+.quality-stats dd { margin: 0; color: #a8f3ec; font: 12px var(--mono); }
+#qualityDialog button { min-height: 44px; }

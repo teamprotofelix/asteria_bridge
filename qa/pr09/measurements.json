@@ -1,0 +1,27 @@
+{
+  "renderer": "Chromium SwiftShader",
+  "all_sectors": 32,
+  "repeated_warps": 31,
+  "textures": {
+    "live": 3,
+    "peak": 3
+  },
+  "frame_time": {
+    "1440x900": {
+      "p50_ms": 16.7,
+      "p95_ms": 16.8,
+      "render": [
+        1080,
+        675
+      ]
+    },
+    "390x844": {
+      "p50_ms": 16.7,
+      "p95_ms": 16.7,
+      "render": [
+        390,
+        844
+      ]
+    }
+  }
+}

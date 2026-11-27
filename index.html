@@ -29,7 +29,7 @@
     <button id="tourBtn" type="button" disabled>관측 순회</button>
     <span id="tourPhase" role="status" aria-live="polite"></span>
   </div>
-</div><div class="panelbottom"><span>FLIGHT PLAN <b id="routeCode">OR-07</b></span><span>● LOCKED</span></div></div>
+</div><div class="panelbottom"><span>FLIGHT PLAN <b id="routeCode">OR-07</b></span><button id="qualityOpen" type="button" aria-haspopup="dialog" disabled>그래픽 품질</button></div></div>
 <div class="panel mainpanel"><div class="panelhead"><span><i></i> FLIGHT CONTROL</span><span id="modeLabel">SUBLIGHT DRIVE</span></div><div class="mainread"><div><small>순항 속도 / SIMULATED</small><div class="speed"><strong id="speedRead">0.24</strong><span>c</span></div></div><button class="warp" id="warp" disabled><span class="warpicon">✦</span><div><b>워프 항해</b><small>ENGAGE WARP</small></div></button></div><div class="throttle"><label for="speed">THROTTLE <b id="throttlePct">35%</b></label><input id="speed" type="range" min="0" max="100" value="35"><div class="scale"><span>정지</span><span>순항</span><span>최대</span></div></div><div class="controls"><button id="autopilot" aria-pressed="false">◇ 자동 시야</button><button id="reset">↺ 정면 복귀</button><button id="cinema" aria-pressed="false">▣ 관측 모드</button><button id="walkToggle" aria-pressed="false" disabled>함교 이동</button></div></div>
 <div class="panel systempanel"><div class="panelhead"><span><i></i> SHIP SYSTEMS</span><span>03 / 艦況</span></div><div class="systembody"><div class="radar"><canvas id="radar" width="160" height="160"></canvas><span>LOCAL SCAN</span></div><div class="sysread"><div><span>동력 코어</span><b id="power">35%</b><i><em id="powerBar"></em></i></div><div><span>보호막</span><b id="shield">100%</b><i><em id="shieldBar" style="width:100%"></em></i></div><div><span>선체 안정성</span><b>100%</b><i><em style="width:100%"></em></i></div></div></div><div class="panelbottom"><span>ENVIRONMENT <b id="environment">STABLE</b></span><button id="marieOpen" type="button" aria-haspopup="dialog" disabled>마리</button></div><p id="marieBrief" aria-label="마리의 활동">계기판 점검</p></div>
 </section>
@@ -102,9 +102,26 @@
     <button id="marieDrone" type="button" hidden>드론 파견</button>
   </div>
 </dialog>
+<dialog id="qualityDialog" aria-labelledby="qualityTitle">
+  <h2 id="qualityTitle">그래픽 품질</h2>
+  <label for="qualitySelect">품질 프리셋</label>
+  <select id="qualitySelect">
+    <option value="auto">Auto</option><option value="ultra">Ultra</option><option value="high">High</option>
+    <option value="medium">Medium</option><option value="low">Low</option><option value="compatibility">Compatibility</option>
+  </select>
+  <dl class="quality-stats">
+    <dt>적용 에셋</dt><dd id="qualityApplied"></dd><dt>큐브 해상도</dt><dd id="qualityAssetSize"></dd>
+    <dt>렌더 해상도</dt><dd id="qualityResolution"></dd><dt>프레임</dt><dd id="qualityFps"></dd>
+    <dt>GPU 텍스처</dt><dd id="qualityTextures"></dd>
+  </dl>
+  <p id="qualityReason"></p>
+  <button id="qualityRetry" type="button">에셋 다시 불러오기</button>
+  <button id="cancelAssets" type="button" hidden>에셋 로드 취소</button>
+  <button id="qualityClose" type="button" class="primary" autofocus>닫기</button>
+</dialog>
 <dialog id="helpDialog"><h2>항해 조작 매뉴얼</h2><p>마우스 또는 터치 드래그로 전 방향을 바라봅니다. 수직 회전도 360°입니다. 함교 이동에서는 WASD 및 방향키로 앞뒤와 좌우로 이동하고, Space/Shift로 높이를 바꿉니다. 마우스나 터치 드래그로 방향을 바꾸고 Q/E로 롤을 조작합니다. V로 함교 이동을 전환하고 Esc로 항해에 복귀합니다. 3D 관측 구역에서는 접근·이탈 버튼이나 관측 항로 슬라이더로 함선을 이동합니다. 이동 중에는 정지 버튼을 누르거나 슬라이더를 조작해 멈출 수 있습니다. 네레이드 항로는 고리 평면을 통과합니다. 관측 순회를 누르면 접근, 관측, 선회, 이탈 순서로 이동합니다. 순회를 중단하거나 시야·슬라이더를 직접 조작할 수 있습니다.</p><table><tr><th>W / S · ↑ / ↓</th><td>상하 회전</td></tr><tr><th>A / D · ← / →</th><td>좌우 회전</td></tr><tr><th>Q / E</th><td>롤 회전</td></tr><tr><th>R / 더블 클릭</th><td>정면 및 롤 초기화</td></tr><tr><th>C / Esc</th><td>관측 모드 전환 / 종료</td></tr><tr><th>+ / − 또는 마우스 휠</th><td>시야각 확대 / 축소</td></tr><tr><th>함교 ON/OFF</th><td>구조물 숨김 / 표시</td></tr></table><p>목적지를 선택하고 항해 버튼을 누르면 워프합니다. 상단 항해 지도에서도 3D 구역을 선택하고 예정 항로를 확인할 수 있습니다. 함선 상황의 마리 버튼은 현재 보고와 지원 요청을 엽니다. 관측 모드의 자동 관측 시작을 누르면 잠시 머문 뒤 다음 구역으로 이동합니다. 우주 상황은 수동 또는 자동으로 경험할 수 있습니다.</p><button id="closeHelp" class="primary">닫기</button></dialog>
 <div id="startupPanel">
   <p id="startupStatus" role="status">관측창 에셋을 불러오는 중입니다.</p>
   <button id="retryStartup" type="button" class="primary" hidden>다시 시도</button>
 </div>
-</main><script src="sectors.js" defer></script><script src="space.js" defer></script><script src="marie.js" defer></script><script src="bridge-room.js" defer></script><script src="events.js" defer></script><script src="navigation-map.js" defer></script><script src="bridge-audio.js" defer></script><script src="app.js" defer></script></body></html>
+</main><script src="sectors.js" defer></script><script src="space.js" defer></script><script src="marie.js" defer></script><script src="bridge-room.js" defer></script><script src="events.js" defer></script><script src="navigation-map.js" defer></script><script src="bridge-audio.js" defer></script><script src="sky-assets.js" defer></script><script src="app.js" defer></script></body></html>
