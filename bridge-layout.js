@@ -20,7 +20,8 @@ const AsteriaInterior = (() => {
   ];
   const waypoints = {
     spawn: [0, 0, 0], forwardInspection: [1.60, 0, 3.05], aftInspection: [2.62, 0, -1.60],
-    teaService: [-.5, 0, -.85], aftHatch: [0, 0, -4.86], lounge: [0, 0, -6.45],
+    teaService: [-.5, 0, -.85], teaPreparation: [2.65, 0, 1.9],
+    sideObservation: [2.77, 0, 3.75], crewRest: [-2.79, 0, -2.67], aftHatch: [0, 0, -4.86], lounge: [0, 0, -6.45],
   };
   const radius = .19;
   const hatchZ = -4.86;
@@ -28,6 +29,7 @@ const AsteriaInterior = (() => {
     ...consoles.map(({x,z,width,depth}) => box(x,z,width,depth)),
     ...Object.values(seats).map(({eye: [x,,z]}) => box(x,z,.90,.94)),
     box(-1.65,-6.62,1.22,.75),
+    box(-2.79,-3.18,.95,.45),
   ];
 
   function nearHatch([x,,z]) {
@@ -45,7 +47,7 @@ const AsteriaInterior = (() => {
       x > minX-radius && x < maxX+radius && z > minZ-radius && z < maxZ+radius);
   }
 
-  function move(position, displacement, hatch) {
+  function move(position, displacement, hatch, crew) {
     const steps = Math.max(1, Math.ceil(Math.hypot(...displacement)/.10));
     const result = [...position];
     for (let i = 0; i < steps; i++) {
@@ -53,7 +55,11 @@ const AsteriaInterior = (() => {
         const candidate = [...result];
         candidate[axis] += displacement[axis]/steps;
         if (axis === 1) candidate[1] = Math.max(-.65, Math.min(.65, candidate[1]));
-        if (walkable(candidate, hatch)) result[axis] = candidate[axis];
+        const currentDistance = crew && Math.hypot(result[0]-crew[0],result[2]-crew[1]);
+        const nextDistance = crew && Math.hypot(candidate[0]-crew[0],candidate[2]-crew[1]);
+        if (walkable(candidate,hatch) && (!crew || nextDistance>=.38 || nextDistance>=currentDistance)) {
+          result[axis]=candidate[axis];
+        }
       }
     }
     return result;

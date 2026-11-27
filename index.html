@@ -101,10 +101,13 @@
   </header>
   <p id="marieActivity">계기판 점검</p>
   <p id="marieReport" role="status" aria-live="polite"></p>
+  <p id="marieDronePhase" role="status"></p>
   <div class="marie-actions">
     <button id="marieStatus" type="button">상태 보고</button>
     <button id="marieTea" type="button">차 준비</button>
+    <button id="marieFollow" type="button" aria-pressed="false">동행 켜기</button>
     <button id="marieDrone" type="button" hidden>드론 파견</button>
+    <button id="marieDroneCancel" type="button" hidden>드론 귀환</button>
   </div>
 </dialog>
 <dialog id="qualityDialog" aria-labelledby="qualityTitle">
@@ -129,4 +132,4 @@
   <p id="startupStatus" role="status">관측창 에셋을 불러오는 중입니다.</p>
   <button id="retryStartup" type="button" class="primary" hidden>다시 시도</button>
 </div>
-</main><script src="sectors.js" defer></script><script src="space.js" defer></script><script src="bridge-layout.js" defer></script><script src="marie.js" defer></script><script src="bridge-room.js" defer></script><script src="events.js" defer></script><script src="navigation-map.js" defer></script><script src="bridge-audio.js" defer></script><script src="sky-assets.js" defer></script><script src="app.js" defer></script></body></html>
+</main><script src="sectors.js" defer></script><script src="space.js" defer></script><script src="bridge-layout.js" defer></script><script src="marie-rig.js" defer></script><script src="marie-motion.js" defer></script><script src="marie.js" defer></script><script src="bridge-room.js" defer></script><script src="events.js" defer></script><script src="navigation-map.js" defer></script><script src="bridge-audio.js" defer></script><script src="sky-assets.js" defer></script><script src="app.js" defer></script></body></html>

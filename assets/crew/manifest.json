@@ -1,0 +1,33 @@
+{
+  "source": "marie-rig.js",
+  "license": "Original project artwork. See ASSET_LICENSES.md.",
+  "joints": 16,
+  "clips": [
+    "IDLE",
+    "PATROL",
+    "FOLLOW",
+    "CHECK_CONSOLE",
+    "OBSERVE",
+    "REPORT",
+    "PREPARE_TEA",
+    "SERVE_TEA",
+    "REST",
+    "ALERT",
+    "ASSIST_NAVIGATION",
+    "CONTROL_DRONE"
+  ],
+  "assets": [
+    {
+      "path": "assets/crew/marie.glb",
+      "bytes": 2476768,
+      "triangles": 27534,
+      "sha256": "d701776ecdd188fbd74313d19b23f5a7b83796e88dc6fba17b20e80af3b4660c"
+    },
+    {
+      "path": "assets/crew/marie-compact.glb",
+      "bytes": 939560,
+      "triangles": 9636,
+      "sha256": "a1ac1f4423e10645ed60ce7fbdc5a44195e16a72fc97310aecf01806f3d9c948"
+    }
+  ]
+}

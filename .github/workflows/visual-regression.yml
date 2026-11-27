@@ -14,12 +14,23 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Verify asset hashes and event rules
-        run: node --test tests/assets.test.js tests/events.test.js tests/bridge-layout.test.js
+        run: node --test tests/*.test.js
       - name: Install Playwright and Chromium
         run: |
           python3 -m venv .qa-venv
           .qa-venv/bin/pip install playwright==1.62.0
           .qa-venv/bin/python -m playwright install --with-deps chromium
+      - name: Check Marie rig, crew actions and mobile fallback
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: .qa-venv/bin/python tests/marie_pr11.py
+      - name: Upload Living Marie review captures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: marie-pr11-captures
+          path: marie-pr11-captures
+          if-no-files-found: ignore
       - name: Check the habitable bridge and capture workstations
         run: .qa-venv/bin/python tests/bridge_pr10.py
       - name: Upload bridge review captures
