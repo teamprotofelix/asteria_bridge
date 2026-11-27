@@ -32,22 +32,29 @@ const AsteriaBridge = (() => {
     const data = [];
     const panel = [0.18, 0.24, 0.31], trim = [0.32, 0.43, 0.52];
     const dark = [0.058, 0.09, 0.13], cyan = [0.20, 0.74, 0.85], amber = [0.89, 0.55, 0.24];
-    function quad(a, b, c, d, color, light = 1) {
-      for (const point of [a, b, c, a, c, d]) data.push(...point, ...color.map(channel => channel * light));
+    function quad(a, b, c, d, color, light = 1, material = 0) {
+      for (const point of [a, b, c, a, c, d]) data.push(...point, ...color.map(channel => channel * light), material);
     }
-    function box([x, y, z], [X, Y, Z], color) {
+    function box([x, y, z], [X, Y, Z], color, material = 0) {
       const a = [x,y,z], b = [X,y,z], c = [X,y,Z], d = [x,y,Z];
       const A = [x,Y,z], B = [X,Y,z], C = [X,Y,Z], D = [x,Y,Z];
-      quad(A, B, C, D, color, 1.07);
-      quad(a, b, c, d, color, .64);
-      quad(a, b, B, A, color, .83);
-      quad(d, c, C, D, color, .83);
-      quad(a, d, D, A, color, .73);
-      quad(b, c, C, B, color, .73);
+      quad(A, B, C, D, color, 1.07, material);
+      quad(a, b, c, d, color, .64, material);
+      quad(a, b, B, A, color, .83, material);
+      quad(d, c, C, D, color, .83, material);
+      quad(a, d, D, A, color, .73, material);
+      quad(b, c, C, B, color, .73, material);
     }
 
     box([-4.9, -1.92, -5.1], [4.9, -1.8, 5.1], dark);
-    box([-4.9, 2.5, -5.1], [4.9, 2.62, 5.1], panel);
+    for (const side of [-1, 1]) {
+      const edge = side < 0 ? [-4.9,-.83] : [.83,4.9];
+      box([edge[0],2.5,-5.1],[edge[1],2.62,5.1],panel);
+    }
+    box([-.83,2.5,-5.1],[.83,2.62,1.8],panel);
+    for (const z of [1.8, 3.15, 4.48, 5.04]) {
+      box([-.86,2.45,z-.04],[.86,2.57,z+.04],trim);
+    }
     for (let x = -4; x <= 4; x++) {
       for (let z = -4; z <= 4; z++) {
         box([x-.489,-1.8,z-.489],[x+.489,-1.78,z+.489], x === 0 ? dark : panel);
@@ -75,10 +82,13 @@ const AsteriaBridge = (() => {
       }
       const rear = z === -5.1 && Z === -5.1;
       if (rear) {
-        strip(-1.8, 2.5, panel);
+        const side = x < 0 || X < 0 ? [-3.5,-1.2] : [1.2,3.5];
+        box([side[0],-1.8,-5.1],[side[1],2.5,-4.98],panel);
         return;
       }
-      strip(-1.8, -1.03, panel);
+      strip(-1.8,-1.03,panel);
+      strip(-1.12,-1.04,dark,.964);
+      strip(1.91,1.99,trim,.963);
       strip(1.91, 2.5, panel);
       strip(-1.03,-.92,trim);
       strip(1.83,1.91,trim);
@@ -88,8 +98,11 @@ const AsteriaBridge = (() => {
         box([x-.095,-1.08,z-.095],[x+.095,1.97,z+.095], trim);
       }
     });
-    box([-1.22,-1.78,-5.09],[1.22,1.45,-4.93], trim);
-    box([-1.12,-1.78,-4.92],[1.12,1.36,-4.87], dark);
+    box([-1.22,1.36,-5.09],[1.22,2.5,-4.89],trim);
+    for (const sign of [-1,1]) {
+      const x=sign*1.18;
+      box([x-.068,-1.8,-5.11],[x+.068,1.48,-4.81],trim);
+    }
     for (const side of [-1, 1]) {
       const a = side * 1.12, b = side * 2.22;
       box([Math.min(a,b),-1.78,-4.87],[Math.max(a,b),1.36,-4.74], panel);
@@ -100,6 +113,15 @@ const AsteriaBridge = (() => {
       box([x-width*.26,-1.78,z-depth*.34],[x+width*.26,-1.13,z+depth*.34], panel);
       box([x-width/2,-1.14,z-depth/2],[x+width/2,-.88,z+depth/2], trim);
       box([x-width*.43,-.878,z-depth*.41],[x+width*.43,-.86,z+depth*.34], dark);
+      for (const side of [-1,1]) {
+        const rail = x + side*width*.45;
+        box([rail-.027,-.88,z-depth*.46],[rail+.027,-.827,z+depth*.46],panel);
+      }
+      box([x-width*.34,-.856,z+depth*.23],[x+width*.34,-.843,z+depth*.31],cyan,2);
+      for (let i = -3; i <= 3; i++) {
+        const key = x + i*width*.11;
+        box([key-.024,-.852,z+.065],[key+.024,-.827,z+.107],i === 3 ? amber : trim,i === 3 ? 2 : 0);
+      }
       for (let i = -3; i <= 3; i++) {
         const offset = i * width * .105;
         const bar = .10 + .19 * (1 + Math.cos(i * 1.56)) / 2;
@@ -107,27 +129,60 @@ const AsteriaBridge = (() => {
       }
       box([x-width*.43,-1.03,z-depth*.505],[x+width*.43,-.996,z-depth*.501], cyan);
     }
-    console(0,3.45,1.85,1.35);
-    for (const x of [-3.93, 3.93]) {
-      console(x,1.9,1.15,1.75);
-      console(x,-1.45,1.15,1.75);
+    for (const {x,z,width,depth} of AsteriaInterior.consoles) console(x,z,width,depth);
+
+    const fabric = [.19,.29,.34];
+    function chair({eye: [x,,z], heading}) {
+      const sign = Math.cos(heading);
+      const back = z - sign*.38;
+      box([x-.27,-1.77,z-.26],[x+.27,-1.64,z+.26],dark);
+      box([x-.11,-1.64,z-.11],[x+.11,-1.20,z+.11],trim);
+      box([x-.40,-1.20,z-.40],[x+.40,-1.03,z+.40],fabric,1);
+      box([x-.32,-1.14,back-.072],[x+.32,.16,back+.072],fabric,1);
+      box([x-.21,.14,back-.066],[x+.21,.27,back+.066],dark,1);
+      for (const side of [-1,1]) {
+        const rail = x+side*.40;
+        box([rail-.047,-1.15,z-.24],[rail+.047,-.80,z+.24],panel);
+        box([rail-.055,-.84,z-.27],[rail+.055,-.79,z+.26],fabric,1);
+      }
     }
-    const frames = [data.length / 6];
+    Object.values(AsteriaInterior.seats).forEach(chair);
+
+    // The pressure doorway opens into a separate aft viewing bay.
+    box([-3.25,-1.91,-7.99],[3.25,-1.8,-5.06],dark);
+    box([-3.25,2.03,-7.99],[3.25,2.14,-5.06],panel);
+    for (const sign of [-1,1]) {
+      const x=sign*3.19;
+      box([x-.06,-1.8,-7.99],[x+.06,-1.04,-5.06],panel);
+      box([x-.07,1.61,-7.99],[x+.07,2.03,-5.06],panel);
+      for (const z of [-7.93,-6.5,-5.11]) {
+        box([x-.062,-1.04,z-.05],[x+.062,1.62,z+.05],trim);
+      }
+      box([x-.063,-1.05,-7.93],[x+.063,-1.01,-5.12],amber,2);
+    }
+    box([-3.25,-1.8,-7.99],[3.25,-1.03,-7.88],panel);
+    box([-3.25,1.59,-7.99],[3.25,2.03,-7.88],panel);
+    for (const x of [-3.2,-1.62,1.62,3.2]) box([x-.055,-1.03,-7.99],[x+.055,1.59,-7.88],trim);
+    box([-2.25,-1.77,-6.99],[-1.05,-1.55,-6.25],panel);
+    box([-2.25,-1.56,-6.99],[-1.05,-1.27,-6.25],fabric,1);
+    for (const x of [-.80,.80]) box([x-.02,-1.79,-7.68],[x+.02,-1.77,-4.91],amber,2);
+    const frames = [data.length / 7];
     for (const side of [-1, 1]) {
       const inner = side * .025, outer = side * 1.09;
       box([Math.min(inner,outer),-1.77,-4.865],[Math.max(inner,outer),1.34,-4.81], dark);
       box([inner-.013,-1.7,-4.805],[inner+.013,1.22,-4.797], cyan);
       const x = side * .57;
       box([x-.33,.22,-4.806],[x+.33,.255,-4.798], trim);
-      frames.push(data.length / 6);
+      frames.push(data.length / 7);
     }
-    const actor = AsteriaMarie.model(box, quad, () => data.length / 6);
+    const actor = AsteriaMarie.model(box, quad, () => data.length / 7);
     return {vertices: new Float32Array(data), frames, actor};
   }
 
   const vertex = `
 attribute vec3 position;
 attribute vec3 tint;
+attribute float surface;
 uniform vec3 eye;
 uniform mat3 basis;
 uniform vec2 scale;
@@ -137,6 +192,7 @@ uniform float walkingStep;
 uniform bool drawActor;
 varying vec3 color;
 varying vec3 point;
+varying float material;
 void main() {
   vec3 world = position + vec3(hatchOffset, 0.0, 0.0);
   if (drawActor) {
@@ -150,16 +206,30 @@ void main() {
   gl_Position = vec4(view.xy / scale, view.z * 1.00753 - .15056, view.z);
   color = tint;
   point = world;
+  material = surface;
 }`;
 
   const fragment = `
 precision mediump float;
 varying vec3 color;
 varying vec3 point;
+varying float material;
+uniform vec3 windowTint;
+uniform vec3 lightDirection;
+uniform vec3 bridgeLighting;
 void main() {
-  float grain = .96 + .04 * sin(point.x*66.0 + point.z*33.0 + point.y*42.0);
-  float lighting = .72 + .28 / (1.0 + .12*dot(point.xz, point.xz));
-  gl_FragColor = vec4(color * grain * lighting, 1.0);
+  float metal = .94 + .06*sin(point.x*76.0 + point.z*31.0 + point.y*61.0);
+  float weave = .91 + .09*sin(point.x*95.0 + point.y*76.0)*sin(point.z*93.0 + point.y*91.0);
+  float taskLight = mix(.44,.83,bridgeLighting.x);
+  float fill = .25 / (1.0 + .13*dot(point.xz,point.xz));
+  float spill = clamp(.37 + .095*dot(point,lightDirection) + .13*point.y, .05,.85);
+  vec3 bounce = windowTint*spill*(.12 + .22*bridgeLighting.x);
+  vec3 warpLight = vec3(.12,.29,.52)*bridgeLighting.y;
+  vec3 hazard = vec3(.19,.075,.026)*bridgeLighting.z;
+  vec3 lit = color * (taskLight + fill + bounce + warpLight + hazard);
+  lit *= material > .5 ? weave : metal;
+  if (material > 1.5) lit = mix(lit,color,.65);
+  gl_FragColor = vec4(lit, 1.0);
 }`;
 
   function bind(gl, program, check) {
@@ -177,17 +247,25 @@ void main() {
 
     const position = gl.getAttribLocation(program, 'position');
     const tint = gl.getAttribLocation(program, 'tint');
-    const [eye, basis, scale, hatchOffset, actorPose, walkingStep, drawActor] =
-      ['eye', 'basis', 'scale', 'hatchOffset', 'actorPose', 'walkingStep', 'drawActor']
+    const surface = gl.getAttribLocation(program, 'surface');
+    const [eye, basis, scale, hatchOffset, actorPose, walkingStep, drawActor, windowTint,
+      lightDirection, bridgeLighting] =
+      ['eye', 'basis', 'scale', 'hatchOffset', 'actorPose', 'walkingStep', 'drawActor', 'windowTint',
+        'lightDirection', 'bridgeLighting']
         .map(name => gl.getUniformLocation(program, name));
     return {
-      draw(matrix, camera, xScale, yScale, hatch, pose) {
+      draw(matrix, camera, xScale, yScale, hatch, pose, light) {
         gl.useProgram(program);
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
         gl.enableVertexAttribArray(position);
         gl.enableVertexAttribArray(tint);
-        gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 24, 0);
-        gl.vertexAttribPointer(tint, 3, gl.FLOAT, false, 24, 12);
+        gl.enableVertexAttribArray(surface);
+        gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 28, 0);
+        gl.vertexAttribPointer(tint, 3, gl.FLOAT, false, 28, 12);
+        gl.vertexAttribPointer(surface, 1, gl.FLOAT, false, 28, 24);
+        gl.uniform3fv(windowTint, light.tint);
+        gl.uniform3fv(lightDirection, light.direction);
+        gl.uniform3fv(bridgeLighting, light.levels);
         gl.uniform3fv(eye, camera);
         gl.uniformMatrix3fv(basis, false, matrix);
         gl.uniform2f(scale, xScale, yScale);
@@ -218,6 +296,7 @@ void main() {
         gl.disable(gl.DEPTH_TEST);
         gl.disableVertexAttribArray(position);
         gl.disableVertexAttribArray(tint);
+        gl.disableVertexAttribArray(surface);
       },
       release() { gl.deleteBuffer(buffer); },
     };

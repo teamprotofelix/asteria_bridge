@@ -368,3 +368,40 @@
 .quality-stats { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; }
 .quality-stats dd { margin: 0; color: #a8f3ec; font: 12px var(--mono); }
 #qualityDialog button { min-height: 44px; }
+
+#bridgeInterior {
+  position: absolute;
+  z-index: 6;
+  top: 74px;
+  left: 5%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid #47647a;
+  border-radius: 6px;
+  max-width: 90%;
+  background: #081724f2;
+}
+#bridgeInterior button, #bridgeInterior label {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #e3f6fb;
+}
+#bridgeInterior button { border: 1px solid #527085; background: #143040; }
+#bridgeInterior button[aria-pressed="true"] { border-color: #dfb074; color: #ffe1bb; }
+#bridgeInterior button:disabled { color: #a0b8c6; }
+#bridgeInterior input { width: 62px; min-height: 44px; margin-left: 5px; accent-color: #79e6dc; }
+@media (max-width: 760px) {
+  #bridgeInterior { top: 61px; left: 3%; max-width: 94%; gap: 4px; }
+  #bridgeInterior button, #bridgeInterior label { min-height: 44px; padding: 0 5px; font-size: 11px; }
+  #bridgeInterior input { width: 46px; }
+}
+@media (max-width: 760px) and (max-height: 500px) {
+  #bridgeInterior { top: 52px; }
+}
