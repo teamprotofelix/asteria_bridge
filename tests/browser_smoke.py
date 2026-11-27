@@ -616,11 +616,16 @@ def test_marie_bridge(browser, url):
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.add_init_script("""
-        let animation, now = performance.now();
+        let callbacks = [], now = performance.now();
         Object.defineProperty(performance, 'now', {value: () => now});
-        window.requestAnimationFrame = cb => { animation = cb; };
+        window.requestAnimationFrame = callback => { callbacks.push(callback); };
         window.marieStep = count => {
-            for (let i = 0; i < count; i++) animation(now += 1000);
+            for (let i = 0; i < count; i++) {
+                now += 1000;
+                const frame = callbacks;
+                callbacks = [];
+                for (const callback of frame) callback(now);
+            }
         };
         window.mariePosition = () => {
             const gl = document.querySelector('#roomView').getContext('webgl');
