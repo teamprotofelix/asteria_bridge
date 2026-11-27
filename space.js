@@ -58,6 +58,17 @@ const AsteriaSpace = (() => {
     return [center[0] + c*dx + s*dz, y, center[2] - s*dx + c*dz];
   }
 
+  function nearRing(scene, approach, orbit) {
+    const {ring} = scene;
+    if (!ring || scene.structure || scene.blackHole) return false;
+    const point = cameraPoint(scene, approach, orbit);
+    const delta = point.map((value, axis) => value - center[axis]);
+    const normalLength = Math.hypot(...ring.normal);
+    const plane = delta.reduce((sum, value, axis) => sum + value * ring.normal[axis], 0) / normalLength;
+    const radial = Math.sqrt(Math.max(0, delta.reduce((sum, value) => sum + value * value, 0) - plane * plane));
+    return Math.abs(plane) <= .32 && radial >= ring.inner && radial <= ring.outer;
+  }
+
   function lookAtRoute(scene, approach, orbit) {
     const eye = cameraPoint(scene, approach, orbit);
     const [x, y, z] = center.map((value, axis) => value - eye[axis]);
@@ -304,5 +315,5 @@ void main() {
     return { upload, draw, clear };
   }
 
-  return { scenes, sample, lookAtRoute, fragment, bind };
+  return { scenes, sample, lookAtRoute, nearRing, fragment, bind };
 })();
