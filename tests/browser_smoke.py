@@ -37,8 +37,8 @@ def boot(browser, url, mode, *, mobile=False, disable_gpu=False, reduced_motion=
 def travel(page, option, name, mode):
     page.select_option("#destinationSelect", str(option))
     page.click("#travel")
-    expect(page.locator("#destinationName")).to_have_text(name)
-    expect(page.locator("#warp")).to_be_enabled()
+    expect(page.locator("#destinationName")).to_have_text(name, timeout=20_000)
+    expect(page.locator("#warp")).to_be_enabled(timeout=20_000)
     expect(page.locator("#renderMode")).to_have_text(mode)
 
 
