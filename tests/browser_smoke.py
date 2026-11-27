@@ -401,6 +401,81 @@ def test_dynamic_events(browser, url):
     page.close()
 
 
+def test_navigation_map(browser, url):
+    page, errors = boot(browser, url, "RENDER / WEBGL 3D")
+    opener = page.locator("#mapOpen")
+    dialog = page.locator("#mapDialog")
+    opener.click()
+    expect(dialog).to_be_visible()
+    assert page.locator("#mapClose").bounding_box()["width"] < 100
+    assert page.locator("#mapReset").bounding_box()["width"] < 100
+    expect(page.locator("#mapNodes button")).to_have_count(32)
+    expect(page.locator("#mapCurrent")).to_have_text("NEREID")
+    expect(page.locator("#mapSummary")).to_have_text("1 / 32 방문")
+    expect(page.locator("#mapTravel")).to_be_disabled()
+    target = page.locator('[data-sector="halogate"]')
+    page.wait_for_function("document.querySelector('[data-sector=halogate]').style.left !== ''")
+    original = target.evaluate("(node) => node.style.left")
+    page.locator("#mapPlot").focus()
+    page.keyboard.press("ArrowRight")
+    page.wait_for_function(
+        "(left) => document.querySelector('[data-sector=halogate]').style.left !== left", arg=original
+    )
+    page.click("#mapReset")
+    page.select_option("#mapFilter", "relic")
+    assert page.locator("#mapNodes button:visible").count() == 6
+    target.click()
+    expect(target).to_have_attribute("aria-pressed", "true")
+    expect(page.locator("#mapSelected")).to_have_text("HALO GATE")
+    expect(page.locator("#destinationSelect")).to_have_value("27")
+    expect(page.locator("#mapVisitState")).to_have_text("미탐사")
+
+    page.route("**/deep-front.webp", lambda route: route.abort())
+    page.click("#mapTravel")
+    expect(page.locator("#mapStatus")).to_contain_text("로드 실패", timeout=20_000)
+    expect(page.locator("#mapCurrent")).to_have_text("NEREID")
+    expect(page.locator("#mapSummary")).to_have_text("1 / 32 방문")
+    page.unroute("**/deep-front.webp")
+    page.click("#mapTravel")
+    expect(page.locator("#mapFlightProgress")).to_be_visible(timeout=20_000)
+    expect(page.locator("#mapTravel")).to_be_disabled()
+    expect(page.locator("#mapCurrent")).to_have_text("NEREID")
+    page.wait_for_function("document.querySelector('#mapFlightProgress').value > 0")
+    expect(page.locator("#mapCurrent")).to_have_text("HALO GATE", timeout=20_000)
+    expect(target).to_have_attribute("aria-current", "location")
+    expect(page.locator("#mapSummary")).to_have_text("2 / 32 방문")
+    page.keyboard.press("Escape")
+    expect(dialog).to_be_hidden()
+    expect(opener).to_be_focused()
+
+    page.reload()
+    expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 3D", timeout=20_000)
+    page.select_option("#destinationSelect", "27")
+    opener.click()
+    expect(page.locator("#mapSelected")).to_have_text("HALO GATE")
+    expect(page.locator("#mapVisitState")).to_have_text("방문 완료")
+    expect(page.locator("#mapCurrent")).to_have_text("NEREID")
+    assert not errors, errors
+    page.close()
+
+
+def test_navigation_map_mobile(browser, url):
+    page, errors = boot(browser, url, "RENDER / CANVAS 360°", mobile=True, disable_gpu=True)
+    page.locator("#mapOpen").tap()
+    expect(page.locator("#mapDialog")).to_be_visible()
+    page.select_option("#mapFilter", "star")
+    page.locator('[data-sector="helion"]').tap()
+    expect(page.locator("#mapSelected")).to_have_text("HELION")
+    expect(page.locator("#mapTravel")).to_be_enabled()
+    page.locator("#mapZoomIn").tap()
+    page.locator("#mapReset").tap()
+    page.locator("#mapClose").tap()
+    expect(page.locator("#mapDialog")).to_be_hidden()
+    expect(page.locator("#destinationSelect")).to_have_value("9")
+    assert not errors, errors
+    page.close()
+
+
 def test_fallbacks(browser, url):
     page, errors = boot(browser, url, "RENDER / CANVAS 360°", mobile=True, disable_gpu=True)
     expect(page.locator("#approach")).to_be_hidden()
@@ -546,6 +621,9 @@ def main():
                 print("PASS: 32 destinations, sector groups and observation tour", flush=True)
                 test_dynamic_events(browser, url)
                 print("PASS: dynamic events, automatic ring passage and response controls", flush=True)
+                test_navigation_map(browser, url)
+                test_navigation_map_mobile(browser, url)
+                print("PASS: 3D map, warp tracking, failed warp, visit persistence and mobile Canvas", flush=True)
                 test_fallbacks(browser, url)
                 test_upload_failure(browser, url)
                 print("PASS: Texture OOM on surface, bridge and destination cubemap", flush=True)

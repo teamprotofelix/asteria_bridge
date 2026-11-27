@@ -144,3 +144,136 @@
 @media (prefers-reduced-motion: reduce) {
   .eventpulse { animation: none; }
 }
+
+#mapDialog {
+  width: min(960px, calc(100% - 24px));
+  max-width: none;
+  max-height: min(90dvh, 720px);
+  overflow: auto;
+  padding: 0;
+  border: 1px solid #407c91;
+  border-radius: 8px;
+  color: #d8eee9;
+  background: #0b1622;
+  box-shadow: 0 16px 60px #000a;
+}
+#mapDialog::backdrop { background: #020812d9; }
+#mapDialog button { margin: 0; }
+.map-header, .map-tools, .map-legend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.map-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  justify-content: space-between;
+  padding: 11px 15px;
+  border-bottom: 1px solid var(--line);
+  background: #0d1e2c;
+}
+.map-header h2 { margin: 0; color: #bbf8f1; font-size: 17px; }
+.map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 230px);
+  gap: 14px;
+  padding: 14px;
+}
+.map-tools { flex-wrap: wrap; padding-bottom: 8px; font-size: 12px; }
+.map-tools select, .map-tools button, #mapClose {
+  min-height: 31px;
+  padding: 3px 8px;
+  border: 1px solid #33566c;
+  border-radius: 4px;
+  background: #112636;
+  color: #d5efea;
+  font: inherit;
+}
+.map-tools select { margin-inline-end: auto; }
+.map-tools button, #mapClose { width: auto; flex: none; }
+#mapPlot {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  height: clamp(320px, 51dvh, 450px);
+  border: 1px solid #325468;
+  border-radius: 5px;
+  touch-action: none;
+  cursor: grab;
+  background: radial-gradient(ellipse at 47% 70%, #133446, #091725 56%, #050d19 100%);
+}
+#mapPlot:active { cursor: grabbing; }
+#mapPlot:focus-visible { outline: 2px solid #b2ffff; outline-offset: 2px; }
+#mapCanvas, #mapNodes { position: absolute; inset: 0; width: 100%; height: 100%; }
+#mapNodes { pointer-events: none; }
+.map-node {
+  --point: #7de0ea;
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--point);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+.map-node:active { transform: translate(-50%, -50%); }
+.map-node[data-group="star"] { --point: #f4cf84; }
+.map-node[data-group="world"] { --point: #8bf0ae; }
+.map-node[data-group="deep"] { --point: #a6b5ff; }
+.map-node[data-group="relic"] { --point: #ffacf4; }
+.map-node::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: #0e2332;
+}
+.map-node.visited::after {
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+.map-node[aria-pressed="true"] { outline: 1px solid currentColor; }
+.map-node[aria-current="location"]::after {
+  width: 10px;
+  height: 10px;
+  border-color: #f2fffc;
+  background: #e4fffa;
+}
+.map-help { margin: 8px 0; font-size: 11px; color: #a7c4ce; }
+.map-legend { flex-wrap: wrap; font-size: 11px; color: #b9d5d9; gap: 6px 12px; }
+.map-legend span::before { margin-inline-end: 5px; color: #a8faf6; }
+.legend-ship::before { content: '➤'; }
+.legend-visited::before { content: '●'; }
+.legend-unknown::before { content: '○'; }
+.legend-course::before { content: '╌'; }
+.map-details {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #0c1d2b;
+}
+.map-details p, .map-details dl { margin: 0 0 10px; }
+.map-details dt { margin: 8px 0 2px; font-size: 11px; color: #9cc4cf; }
+.map-details dd { margin: 0; color: #d6fff6; font: 600 13px var(--mono); overflow-wrap: anywhere; }
+#mapSummary, #mapVisitState { font-size: 12px; color: #9ce2dc; }
+#mapDescription, #mapStatus { font-size: 12px; color: #b2cbd8; }
+.map-journey {
+  margin-top: 14px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+#mapFlightProgress { width: 100%; accent-color: #76eeef; }
+#mapTravel { width: 100%; min-height: 34px; }
+#mapTravel:disabled { opacity: .55; }
+@media (max-width: 630px) {
+  .map-layout { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 9px; }
+  #mapPlot { height: clamp(220px, 42dvh, 340px); }
+}
