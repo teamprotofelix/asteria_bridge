@@ -611,6 +611,104 @@ def test_automatic_observation(browser, url):
     page.close()
 
 
+def test_marie_bridge(browser, url):
+    page = browser.new_page(viewport={"width": 780, "height": 580})
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.add_init_script("""
+        let animation, now = performance.now();
+        Object.defineProperty(performance, 'now', {value: () => now});
+        window.requestAnimationFrame = cb => { animation = cb; };
+        window.marieStep = count => {
+            for (let i = 0; i < count; i++) animation(now += 1000);
+        };
+        window.mariePosition = () => {
+            const gl = document.querySelector('#roomView').getContext('webgl');
+            const program = gl.getParameter(gl.CURRENT_PROGRAM);
+            return Array.from(gl.getUniform(program, gl.getUniformLocation(program, 'actorPose')));
+        };
+    """)
+    page.goto(url)
+    expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 3D", timeout=20_000)
+    page.evaluate("marieStep(1)")
+    initial = page.evaluate("mariePosition()")
+    page.evaluate("marieStep(9)")
+    expect(page.locator("#marieBrief")).to_have_text("함교 순찰")
+    moved = page.evaluate("mariePosition()")
+    assert moved[2] < initial[2] - 1
+
+    page.locator("#destinationSelect").select_option("1")
+    page.click("#marieOpen")
+    report = page.locator("#marieReport")
+    expect(report).to_contain_text("NEREID → SELENE")
+    page.click("#marieClose")
+    page.click("#mapOpen")
+    page.evaluate("marieStep(1)")
+    page.locator('[data-sector="gaia"]').click()
+    page.click("#mapClose")
+    page.click("#marieOpen")
+    expect(report).to_contain_text("NEREID → GAIA")
+    expect(report).to_contain_text("GA-21")
+    page.click("#marieClose")
+    page.click("#travel")
+    expect(page.locator("#modeLabel")).to_have_text("WARP DRIVE", timeout=20_000)
+    page.click("#marieOpen")
+    expect(report).to_contain_text("GAIA로 출항")
+    page.evaluate("marieStep(4)")
+    expect(report).to_contain_text("GAIA 도착")
+    page.click("#marieClose")
+
+    page.select_option("#eventSelect", "asteroid")
+    page.click("#eventBtn")
+    expect(page.locator("#marieBrief")).to_have_text("위험 감시")
+    page.click("#marieOpen")
+    expect(report).to_contain_text("소행성 근접 통과")
+    expect(page.locator("#marieTea")).to_be_disabled()
+    page.click("#marieClose")
+    page.click("#eventDismiss")
+
+    page.select_option("#eventSelect", "signal")
+    page.click("#eventBtn")
+    page.click("#marieOpen")
+    expect(report).to_contain_text("드론 파견을 제안")
+    page.click("#marieDrone")
+    page.evaluate("marieStep(5)")
+    expect(report).to_contain_text("GAIA 조사 완료")
+    expect(page.locator("#marieDrone")).to_be_disabled()
+    page.click("#marieClose")
+    page.click("#eventDismiss")
+
+    page.click("#eventBtn")
+    page.click("#marieOpen")
+    page.click("#marieDrone")
+    page.click("#marieClose")
+    page.click("#eventDismiss")
+    page.click("#marieOpen")
+    expect(report).to_contain_text("드론을 귀환")
+    page.evaluate("marieStep(100)")
+    expect(page.locator("#marieActivity")).to_have_text("차 준비 중")
+    page.evaluate("marieStep(8)")
+    expect(report).to_contain_text("차가 준비되었습니다")
+    page.click("#marieTea")
+    expect(report).to_contain_text("차를 올려두었습니다")
+    assert not errors, errors
+    page.close()
+
+
+def test_marie_mobile_fallback(browser, url):
+    page, errors = boot(browser, url, "RENDER / CANVAS 360°", mobile=True, disable_gpu=True)
+    page.locator("#marieOpen").tap()
+    expect(page.locator("#marieDialog")).to_be_visible()
+    page.locator("#marieStatus").tap()
+    expect(page.locator("#marieReport")).to_contain_text("계기판 상태 정상")
+    page.locator("#marieTea").tap()
+    expect(page.locator("#marieActivity")).to_have_text("차 준비 중")
+    page.keyboard.press("Escape")
+    expect(page.locator("#marieDialog")).to_be_hidden()
+    assert not errors, errors
+    page.close()
+
+
 def test_fallbacks(browser, url):
     page, errors = boot(browser, url, "RENDER / CANVAS 360°", mobile=True, disable_gpu=True)
     expect(page.locator("#approach")).to_be_hidden()
@@ -762,6 +860,9 @@ def main():
                 test_bridge_audio(browser, url)
                 test_automatic_observation(browser, url)
                 print("PASS: layered audio and automatic observation", flush=True)
+                test_marie_bridge(browser, url)
+                test_marie_mobile_fallback(browser, url)
+                print("PASS: Marie patrol, reports, hazard warnings, drone and tea", flush=True)
                 test_fallbacks(browser, url)
                 test_upload_failure(browser, url)
                 print("PASS: Texture OOM on surface, bridge and destination cubemap", flush=True)

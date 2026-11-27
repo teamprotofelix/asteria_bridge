@@ -16,6 +16,7 @@ const wrap=a=>((a+180)%360+360)%360-180, clamp=(x,a,b)=>Math.max(a,Math.min(b,x)
 const soundscape = AsteriaAudio.create();
 let watch = null, audioWarp = null, nextAudioUpdate = 0, nextRadarCue = 0;
 let hatchOpen = false, hatchSlide = 0;
+let drawnMariePose = null, lastMarieDraw = 0;
 const watchSeconds = 45;
 const watchRoute = ['nereid', 'gaia', 'halogate', 'nebula', 'cryon', 'helion', 'undertow', 'hush'];
 
@@ -224,7 +225,7 @@ function gpuLayer(canvas, alpha) {
     }
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     if (bridgeMesh) {
-      bridgeMesh.draw(matrix, walkPosition, width / (2*focal), height / (2*focal), hatchSlide);
+      bridgeMesh.draw(matrix, walkPosition, width / (2*focal), height / (2*focal), hatchSlide, marie.pose());
       return;
     }
     const shader = geometry ? spaceProgram : cubeProgram;
@@ -382,8 +383,15 @@ function renderCamera(now, frameMs) {
     }
     lastSkyDraw = now;
   }
-  if (room && (redrawCamera || roomMoved)) {
-    renderer.room.draw(cameraMatrix, w, h, moving);
+  if (room) {
+    const pose = renderer.room.interior ? marie.pose() : null;
+    const poseKey = pose && [pose.point[0], pose.point[1], pose.direction, pose.step, pose.tea].join('/');
+    const marieMoved = poseKey !== drawnMariePose && now - lastMarieDraw >= 66;
+    if (redrawCamera || roomMoved || marieMoved) {
+      renderer.room.draw(cameraMatrix, w, h, moving || marieMoved);
+      drawnMariePose = poseKey;
+      lastMarieDraw = now;
+    }
   }
   drawnRoomPosition = roomPosition;
   if (redrawCamera) {
@@ -587,11 +595,13 @@ destinations.forEach(([, , description, , group = 'legacy'], index) => {
   optionsByGroup.get(group).append(new Option(description, index));
 });
 
+const marie = AsteriaMarie.create(destinations, reduced);
 const navigationMap = AsteriaNavigationMap.create(destinations, groups, {
   select(index) {
     if (loading || warp) return;
     $('destinationSelect').value = String(index);
     navigationMap.select(index);
+    marie.plan(index);
   },
   travel: index => engage(index),
 });
@@ -600,7 +610,16 @@ $('mapOpen').onclick = () => {
   drag = null;
   navigationMap.open();
 };
-$('destinationSelect').addEventListener('change', event => navigationMap.select(Number(event.target.value)));
+$('destinationSelect').addEventListener('change', event => {
+  const index = Number(event.target.value);
+  navigationMap.select(index);
+  marie.plan(index);
+});
+$('marieOpen').onclick = () => {
+  keys.clear();
+  drag = null;
+  marie.open();
+};
 
 setDest(0);
 let startupAttempt = 0;
@@ -618,6 +637,8 @@ async function startBridge() {
     uploadRoom(images);
     ready = true;
     navigationMap.arrive(dest);
+    marie.arrive(dest);
+    $('marieOpen').disabled = false;
     $('mapOpen').disabled = false;
     updateRendererLabel();
     $('startupPanel').hidden = true;
@@ -838,6 +859,7 @@ async function engage(n = null, session = null) {
   stopRoute();
   setTravelBusy(true);
   $('flightStatus').textContent = '항로 계산 중';
+  if (n !== null) marie.plan(n);
   try {
     const images = n !== null && n !== dest ? await loadSky(n) : null;
     if (session && watch !== session) return;
@@ -845,6 +867,7 @@ async function engage(n = null, session = null) {
     warp = {start: performance.now(), next: n, changed: false, images};
     audioWarp = 0;
     navigationMap.begin(n);
+    marie.depart(n);
     $('warp').classList.add('engaged');
     $('warp').querySelector('b').textContent = '워프 진행 중';
     $('flightStatus').textContent = '워프 항해 중';
@@ -854,6 +877,7 @@ async function engage(n = null, session = null) {
     if (!session || watch === session) {
       const message = '목적지 이미지 로드 실패. 현재 구역 유지.';
       navigationMap.fail(message);
+      marie.failed();
       notify(message);
     }
   } finally {
@@ -878,6 +902,7 @@ function advanceWarp(now) {
   warp = null;
   audioWarp = null;
   navigationMap.arrive(dest);
+  marie.arrive(dest);
   setTravelBusy(false);
   $('warp').classList.remove('engaged');
   $('warp').querySelector('b').textContent = '워프 항해';
@@ -914,6 +939,7 @@ function setEventHud(shield) {
 function endEvent(returnFocus = true) {
   const hadFocus = $('eventBanner').contains(document.activeElement);
   event = null;
+  marie.event(null);
   $('eventBanner').hidden = true;
   $('environment').textContent = 'STABLE';
   setEventHud(100);
@@ -932,6 +958,7 @@ function startEvent(type, context = eventContext()) {
   }
   if (event) endEvent(false);
   event = next;
+  marie.event(type);
   const entry = events[type];
   $('eventName').textContent = entry.name;
   $('eventDescription').textContent = entry.description;
@@ -999,7 +1026,7 @@ $('watchNext').onclick = () => {
 const view=$('view');view.addEventListener('pointerdown',e=>{if(e.button!==0)return;setAuto(false);view.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,id:e.pointerId};view.setPointerCapture(e.pointerId);});view.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;turnView(-(e.clientX-drag.x)*.19,(e.clientY-drag.y)*.19);drag.x=e.clientX;drag.y=e.clientY;});for(let ev of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(ev,()=>drag=null);view.addEventListener('dblclick',reset);view.addEventListener('wheel',e=>{e.preventDefault();zoomBy(-Math.sign(e.deltaY)*.08);},{passive:false});
 const map={arrowup:'w',arrowdown:'s',arrowleft:'a',arrowright:'d'}, editable=el=>el&&['INPUT','SELECT','TEXTAREA'].includes(el.tagName);
 window.addEventListener('keydown', e => {
-  if ($('mapDialog').open) return;
+  if ($('mapDialog').open || $('marieDialog').open) return;
   if (e.key === 'Escape') {
     if (cinema) setCinema(false);
     if (walking) setWalking(false);
@@ -1069,6 +1096,6 @@ $('warpGlow').style.opacity = wa * .8;
 if (!wasWarping) advanceWatch(clamp(frameMs / 1000, 0, 1));
 updateHatch(dt);
 advanceAudio(now);
-advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);let bearing=(yaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(pitch>=0?'+':'')+pitch.toFixed(1)+'°';$('rollRead').textContent=(roll>=0?'+':'')+roll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}requestAnimationFrame(frame);}
+advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();if (ready && !document.hidden) marie.advance(clamp(frameMs / 1000, 0, 1));renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);let bearing=(yaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(pitch>=0?'+':'')+pitch.toFixed(1)+'°';$('rollRead').textContent=(roll>=0?'+':'')+roll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}requestAnimationFrame(frame);}
 window.addEventListener('resize',resize);if(window.ResizeObserver)new ResizeObserver(layoutControls).observe(document.querySelector('.console'));resize();updateSpeed();requestAnimationFrame(frame);
 })();

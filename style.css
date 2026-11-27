@@ -303,3 +303,54 @@
   #observationControls { left: 10px; max-width: calc(100% - 130px); gap: 4px; }
   #exitCinema { right: 10px; }
 }
+
+#marieOpen {
+  min-height: 24px;
+  padding: 2px 7px;
+  border: 1px solid #3c6275;
+  border-radius: 3px;
+  background: #102a39;
+  color: #d1eff1;
+  font: inherit;
+}
+#marieBrief {
+  margin: 4px 0 0;
+  color: #a8c9d4;
+  font: 9px var(--mono);
+  text-align: end;
+}
+#marieDialog {
+  width: min(430px, calc(100% - 24px));
+  max-width: none;
+  max-height: 90dvh;
+  padding: 15px;
+}
+.marie-header, .marie-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.marie-header { justify-content: space-between; }
+.marie-header h2 { margin: 0; color: #ccf6ef; font-size: 17px; }
+#marieDialog button {
+  width: auto;
+  min-height: 29px;
+  margin: 0;
+  padding: 3px 8px;
+  border: 1px solid #416681;
+  border-radius: 4px;
+  background: #112838;
+  color: #d1e9ef;
+  font-size: 12px;
+}
+#marieDialog button:disabled { opacity: .5; }
+#marieActivity { margin: 7px 0; color: #82e5d8; font-size: 11px; }
+#marieReport {
+  min-height: 53px;
+  margin: 0 0 10px;
+  padding: 9px;
+  border-left: 2px solid #527e94;
+  color: #ddf0f3;
+  background: #10202f;
+}
