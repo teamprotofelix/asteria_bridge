@@ -15,7 +15,10 @@ let yaw=0,pitch=0,roll=0,zoom=1,focal=500,w=1,h=1,dpr=1,throttle=35,auto=false,c
 const wrap=a=>((a+180)%360+360)%360-180, clamp=(x,a,b)=>Math.max(a,Math.min(b,x)), rad=Math.PI/180;
 const soundscape = AsteriaAudio.create();
 let watch = null, audioWarp = null, nextAudioUpdate = 0, nextRadarCue = 0;
-let hatchOpen = false, hatchSlide = 0;
+let hatchOpen = false, hatchSlide = 0, hatchOverride = null;
+let seat = null, standingPose = null, stepDistance = 0;
+let nightBridge = false, bridgeAlert = 0, bridgeWarp = 0;
+const safeBridgeEvents = new Set(['meteor', 'asteroid', 'flare', 'ring', 'dust']);
 let drawnMariePose = null, lastMarieDraw = 0;
 const watchSeconds = 45;
 const watchRoute = ['nereid', 'gaia', 'halogate', 'nebula', 'cryon', 'helion', 'undertow', 'hush'];
@@ -25,7 +28,7 @@ let walkPosition = [...AsteriaBridge.origin];
 let walkOrientation = AsteriaBridge.orientation(0, 0, 0);
 let cameraMatrix = AsteriaBridge.matrix(walkOrientation);
 let cameraDirty = false;
-let drawnRoomPosition = null;
+let drawnRoomPosition = null, drawnRoomFrame = null;
 
 function loadImg(url, signal) {
   return new Promise((resolve, reject) => {
@@ -270,7 +273,7 @@ function gpuLayer(canvas, alpha) {
     }
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     if (bridgeMesh) {
-      bridgeMesh.draw(matrix, walkPosition, width / (2*focal), height / (2*focal), hatchSlide, marie.pose());
+      bridgeMesh.draw(matrix, walkPosition, width / (2*focal), height / (2*focal), hatchSlide, marie.pose(), bridgeLight());
       return;
     }
     const shader = geometry ? spaceProgram : cubeProgram;
@@ -372,11 +375,6 @@ function updateCamera() {
   if (!cameraDirty) return;
   const orientation = walking ? walkOrientation : AsteriaBridge.orientation(yaw * rad, pitch * rad, roll * rad);
   cameraMatrix = AsteriaBridge.matrix(orientation);
-  if (walking) {
-    yaw = Math.atan2(cameraMatrix[6], cameraMatrix[8]) / rad;
-    pitch = Math.asin(clamp(cameraMatrix[7], -1, 1)) / rad;
-    roll = Math.atan2(cameraMatrix[1], cameraMatrix[4]) / rad;
-  }
   cameraDirty = false;
 }
 
@@ -397,21 +395,29 @@ function moveInside(dt, inputs = keys) {
   const forward = Number(inputs.has('w')) - Number(inputs.has('s'));
   const sideways = Number(inputs.has('d')) - Number(inputs.has('a'));
   const vertical = Number(inputs.has(' ')) - Number(inputs.has('shift'));
-  if (!forward && !sideways && !vertical) return;
+  if (seat || (!forward && !sideways && !vertical)) return;
   const distance = 2.15 * dt / Math.max(1, Math.hypot(forward, sideways, vertical));
-  const bearing = yaw * rad;
-  walkPosition = [
-    clamp(walkPosition[0] + distance*(sideways*Math.cos(bearing) + forward*Math.sin(bearing)), -2.95, 2.95),
-    clamp(walkPosition[1] + distance*vertical, -.65, .65),
-    clamp(walkPosition[2] + distance*(forward*Math.cos(bearing) - sideways*Math.sin(bearing)), -3.05, 2.2),
-  ];
+  const bearing = Math.atan2(cameraMatrix[6], cameraMatrix[8]);
+  const before = walkPosition;
+  walkPosition = AsteriaInterior.move(before, [
+    distance*(sideways*Math.cos(bearing) + forward*Math.sin(bearing)),
+    distance*vertical,
+    distance*(forward*Math.cos(bearing) - sideways*Math.sin(bearing)),
+  ], hatchSlide);
+  stepDistance += Math.hypot(walkPosition[0]-before[0], walkPosition[2]-before[2]);
+  if (stepDistance >= .79) {
+    stepDistance = 0;
+    soundscape.cue('step', walkPosition);
+  }
+  updateBridgeAction();
 }
 
 function renderCamera(now, frameMs) {
   if (!ready) return;
   if (renderer.sky.geometry && !reduced && qualityMode === 'auto') adaptQuality(now, frameMs);
   const angles = walking ? walkOrientation : [yaw, pitch, roll];
-  const key = [...angles, zoom, w, h, room, hatchSlide, revision].join('/');
+  const key = [...angles, zoom, w, h, room, revision].join('/');
+  const roomFrame = [hatchSlide, nightBridge, !!watch, bridgeWarp, bridgeAlert].join('/');
   const roomPosition = walkPosition.join('/');
   const roomMoved = roomPosition !== drawnRoomPosition;
   const changed = key !== drawn && key + '/static' !== drawn;
@@ -434,9 +440,10 @@ function renderCamera(now, frameMs) {
     const pose = renderer.room.interior ? marie.pose() : null;
     const poseKey = pose && [pose.point[0], pose.point[1], pose.direction, pose.step, pose.tea].join('/');
     const marieMoved = poseKey !== drawnMariePose && now - lastMarieDraw >= 66;
-    if (redrawCamera || roomMoved || marieMoved) {
+    if (redrawCamera || roomMoved || marieMoved || roomFrame !== drawnRoomFrame) {
       renderer.room.draw(cameraMatrix, w, h, moving || marieMoved);
       drawnMariePose = poseKey;
+      drawnRoomFrame = roomFrame;
       lastMarieDraw = now;
     }
   }
@@ -719,8 +726,9 @@ function updateWalkControls() {
   $('walkToggle').setAttribute('aria-pressed', String(walking));
   $('walkToggle').textContent = walking ? '항해 복귀' : '함교 이동';
   $('bridge').classList.toggle('walking', walking);
-  $('viewMode').textContent = walking ? 'WALK' : cinema ? 'OBSERVE' : auto ? 'AUTO' : 'MANUAL';
-  $('viewHint').textContent = walking ? 'WASD 이동 · 드래그 시야 · Q/E 롤 · Space/Shift 높이 · Esc 복귀'
+  $('viewMode').textContent = seat ? 'SEATED' : walking ? 'WALK' : cinema ? 'OBSERVE' : auto ? 'AUTO' : 'MANUAL';
+  updateBridgeAction();
+  $('viewHint').textContent = walking ? 'WASD 이동 · Space/Shift 높이 · F 상호작용 · Esc 복귀'
     : 'W A S D · 드래그 · Q/E 롤 · R 정면 · C 관측';
 }
 function setAuto(on) {
@@ -734,6 +742,9 @@ function reset() {
   yaw = pitch = roll = 0;
   walkOrientation = AsteriaBridge.orientation(0, 0, 0);
   walkPosition = [...AsteriaBridge.origin];
+  seat = standingPose = null;
+  hatchOverride = null;
+  updateWalkControls();
   cameraDirty = true;
   zoom = 1;
   updateFocal();
@@ -746,10 +757,11 @@ function setWalking(on) {
     setRoom(true);
     stopRoute();
     walkOrientation = AsteriaBridge.orientation(yaw * rad, pitch * rad, roll * rad);
-  } else {
-    updateCamera();
   }
   walking = on;
+  seat = standingPose = null;
+  hatchOverride = null;
+  stepDistance = 0;
   walkPosition = [...AsteriaBridge.origin];
   keys.clear();
   cameraDirty = true;
@@ -816,7 +828,9 @@ function advanceWatch(dt) {
 }
 
 function updateAudio() {
-  soundscape.mix({throttle, warp: audioWarp, ambient: !!watch, hidden: document.hidden});
+  soundscape.mix({throttle, warp: audioWarp, ambient: !!watch, hidden: document.hidden,
+    listener: walkPosition, right: Array.from(cameraMatrix.slice(0, 3)),
+    volume: Number($('bridgeVolume').value) / 100});
 }
 
 function refreshSoundControls() {
@@ -847,14 +861,99 @@ function advanceAudio(now) {
   }
 }
 
-function updateHatch(dt) {
-  const sensor = walking && walkPosition[2] < (hatchOpen ? -2.15 : -2.55) && Math.abs(walkPosition[0]) < 1.12;
-  if (hatchOpen !== sensor) {
-    hatchOpen = sensor;
-    soundscape.cue('hatch');
-  }
-  hatchSlide = reduced ? Number(hatchOpen) : clamp(hatchSlide + (hatchOpen ? 1 : -1) * dt * 2, 0, 1);
+function bridgeEvent(type, detail) {
+  $('bridge').dispatchEvent(new CustomEvent('asteria:bridge', {detail: {type, ...detail}}));
 }
+
+function updateBridgeAction() {
+  const bar = $('bridgeInterior');
+  bar.hidden = !walking;
+  if (!walking) return;
+  const action = $('bridgeAction');
+  const target = seat ? null : AsteriaInterior.nearby(walkPosition);
+  const label = seat ? AsteriaInterior.seats[seat].label + '에서 일어나기'
+    : target?.id === 'hatch' ? (hatchOpen ? '후방 출입문 닫기' : '후방 출입문 열기')
+    : target?.label ?? '좌석이나 콘솔에 접근';
+  if (action.textContent !== label) action.textContent = label;
+  action.disabled = !seat && !target;
+}
+
+function interactBridge() {
+  if (!walking || loading || warp) return;
+  if (seat) {
+    const previous = seat;
+    ({position: walkPosition, orientation: walkOrientation} = standingPose);
+    seat = standingPose = null;
+    bridgeEvent('stand', {id: previous});
+  } else {
+    const target = AsteriaInterior.nearby(walkPosition);
+    if (!target) return;
+    const place = AsteriaInterior.seats[target.id];
+    if (place) {
+      standingPose = {position: [...walkPosition], orientation: walkOrientation};
+      seat = target.id;
+      walkPosition = [...place.eye];
+      walkOrientation = AsteriaBridge.orientation(place.heading, 0, 0);
+      bridgeEvent('seat', {id: seat});
+    } else if (target.id === 'hatch') {
+      if (hatchOpen && AsteriaInterior.nearHatch(walkPosition)) {
+        notify('출입문 통로가 비면 닫을 수 있습니다.');
+        return;
+      }
+      hatchOverride = !hatchOpen;
+    } else if (target.id === 'science') {
+      $('mapOpen').click();
+    } else {
+      void toggleSound();
+    }
+  }
+  keys.clear();
+  cameraDirty = true;
+  updateWalkControls();
+  if (!$('mapDialog').open) $('view').focus({preventScroll: true});
+}
+
+function updateHatch(dt) {
+  const sensor = walking && !seat && AsteriaInterior.hatchSensor(walkPosition, hatchOpen);
+  if (!walking || Math.abs(walkPosition[2] + 4.86) > 2.7 || Math.abs(walkPosition[0]) > 1.6) hatchOverride = null;
+  const next = (hatchOverride ?? sensor) || (walking && AsteriaInterior.nearHatch(walkPosition));
+  if (hatchOpen !== next) {
+    hatchOpen = next;
+    soundscape.cue('hatch');
+    bridgeEvent('hatch', {open: hatchOpen});
+    updateBridgeAction();
+  }
+  hatchSlide = reduced ? Number(hatchOpen) : clamp(hatchSlide + (hatchOpen ? 1 : -1)*dt*2, 0, 1);
+}
+
+function bridgeLight() {
+  const id = destinations[dest][0];
+  const scene = AsteriaSpace.scenes[id];
+  const tint = scene?.atmosphere ?? (id === 'nebula' ? [.46,.38,.96] : [.43,.63,.87]);
+  const source = scene?.keyLight ?? [-.61,.53,-.59];
+  const magnitude = Math.hypot(...source) || 1;
+  return {tint, direction: source.map(component => component/magnitude),
+    levels: [nightBridge || watch ? .24 : 1, bridgeWarp, bridgeAlert]};
+}
+
+function updateBridgeLight(dt, warpGlow) {
+  const warpLevel = warp ? Math.sin(Math.PI * (audioWarp ?? 0)) : warpGlow;
+  const hazardLevel = Number(safeBridgeEvents.has(event?.type));
+  function approachLight(value, target) {
+    if (Math.abs(value-target) < .01) return target;
+    return value + (target-value)*Math.min(1, dt*4);
+  }
+  bridgeWarp = reduced ? 0 : approachLight(bridgeWarp, warpLevel);
+  bridgeAlert = reduced ? hazardLevel : approachLight(bridgeAlert, hazardLevel);
+}
+
+$('bridgeAction').onclick = interactBridge;
+$('bridgeLights').onclick = () => {
+  nightBridge = !nightBridge;
+  $('bridgeLights').setAttribute('aria-pressed', String(nightBridge));
+  $('bridgeLights').textContent = nightBridge ? '야간 조명' : '일반 조명';
+};
+$('bridgeVolume').oninput = updateAudio;
 function setRoom(on) {
   if (!on && walking) setWalking(false);
   room = on;
@@ -1102,7 +1201,8 @@ window.addEventListener('keydown', e => {
     keys.add(k);
     if (auto) setAuto(false);
   } else if (!e.repeat) {
-    if (k === 'r') reset();
+    if (k === 'f' && walking) { e.preventDefault(); interactBridge(); }
+    else if (k === 'r') reset();
     else if (k === 'c') setCinema(!cinema);
     else if (k === 'v') {
       setWalking(!walking);
@@ -1156,8 +1256,12 @@ if (wasWarping) updateSpeed(wa);
 $('warpGlow').style.opacity = wa * .8;
 if (!wasWarping) advanceWatch(clamp(frameMs / 1000, 0, 1));
 updateHatch(dt);
+updateBridgeLight(dt, wa);
 advanceAudio(now);
-advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();if (ready && !document.hidden) marie.advance(clamp(frameMs / 1000, 0, 1));renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);let bearing=(yaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(pitch>=0?'+':'')+pitch.toFixed(1)+'°';$('rollRead').textContent=(roll>=0?'+':'')+roll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}updateQualityHud(now,frameMs);requestAnimationFrame(frame);}
+advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();if (ready && !document.hidden) marie.advance(clamp(frameMs / 1000, 0, 1));renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);const displayYaw = walking ? Math.atan2(cameraMatrix[6],cameraMatrix[8])/rad : yaw;
+const displayPitch = walking ? Math.asin(clamp(cameraMatrix[7],-1,1))/rad : pitch;
+const displayRoll = walking ? Math.atan2(cameraMatrix[1],cameraMatrix[4])/rad : roll;
+let bearing=(displayYaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(displayPitch>=0?'+':'')+displayPitch.toFixed(1)+'°';$('rollRead').textContent=(displayRoll>=0?'+':'')+displayRoll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}updateQualityHud(now,frameMs);requestAnimationFrame(frame);}
 function updateQualityHud(now, frameMs) {
   if (frameMs > 0 && frameMs < 200 && !document.hidden) {
     displayFps += (1000 / frameMs - displayFps)*.06;

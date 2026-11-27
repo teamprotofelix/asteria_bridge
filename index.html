@@ -34,6 +34,11 @@
 <div class="panel systempanel"><div class="panelhead"><span><i></i> SHIP SYSTEMS</span><span>03 / 艦況</span></div><div class="systembody"><div class="radar"><canvas id="radar" width="160" height="160"></canvas><span>LOCAL SCAN</span></div><div class="sysread"><div><span>동력 코어</span><b id="power">35%</b><i><em id="powerBar"></em></i></div><div><span>보호막</span><b id="shield">100%</b><i><em id="shieldBar" style="width:100%"></em></i></div><div><span>선체 안정성</span><b>100%</b><i><em style="width:100%"></em></i></div></div></div><div class="panelbottom"><span>ENVIRONMENT <b id="environment">STABLE</b></span><button id="marieOpen" type="button" aria-haspopup="dialog" disabled>마리</button></div><p id="marieBrief" aria-label="마리의 활동">계기판 점검</p></div>
 </section>
 <div class="eventcontrols"><button id="eventBtn">✧ 우주 상황</button><select id="eventSelect" aria-label="우주 상황 선택"></select><button id="randomEvent" aria-pressed="false">자동 상황 OFF</button><button id="roomToggle" aria-pressed="true">함교 ON</button></div>
+<div id="bridgeInterior" aria-label="함교 상호작용" hidden>
+  <button id="bridgeAction" type="button" aria-keyshortcuts="F" disabled>좌석이나 콘솔에 접근</button>
+  <button id="bridgeLights" type="button" aria-pressed="false">일반 조명</button>
+  <label for="bridgeVolume">음량 <input id="bridgeVolume" type="range" min="0" max="100" value="100"></label>
+</div>
 <div class="touchpad" aria-label="터치 방향 조작"><button data-key="w" aria-label="위">▲</button><button data-key="a" aria-label="왼쪽">◀</button><button data-key="s" aria-label="아래">▼</button><button data-key="d" aria-label="오른쪽">▶</button>
 <button class="walk-only" data-key=" " aria-label="상승">↑</button>
 <button class="walk-only" data-key="shift" aria-label="하강">↓</button>
@@ -124,4 +129,4 @@
   <p id="startupStatus" role="status">관측창 에셋을 불러오는 중입니다.</p>
   <button id="retryStartup" type="button" class="primary" hidden>다시 시도</button>
 </div>
-</main><script src="sectors.js" defer></script><script src="space.js" defer></script><script src="marie.js" defer></script><script src="bridge-room.js" defer></script><script src="events.js" defer></script><script src="navigation-map.js" defer></script><script src="bridge-audio.js" defer></script><script src="sky-assets.js" defer></script><script src="app.js" defer></script></body></html>
+</main><script src="sectors.js" defer></script><script src="space.js" defer></script><script src="bridge-layout.js" defer></script><script src="marie.js" defer></script><script src="bridge-room.js" defer></script><script src="events.js" defer></script><script src="navigation-map.js" defer></script><script src="bridge-audio.js" defer></script><script src="sky-assets.js" defer></script><script src="app.js" defer></script></body></html>

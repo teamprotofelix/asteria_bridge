@@ -5,7 +5,7 @@
 ## 시작하기
 
 - ZIP을 압축 해제하고 `index.html`을 브라우저에서 여세요. 모든 상대경로 에셋을 같이 유지하세요. 브라우저의 로컬 파일 접근 정책에 따라 정적 HTTP 호스팅이 필요할 수 있습니다.
-- GitHub Pages: 저장소 루트에 `index.html`, `app.js`, `sky-assets.js`, `sectors.js`, `space.js`, `marie.js`, `bridge-room.js`, `events.js`, `navigation-map.js`, `bridge-audio.js`, `style.css`, `.nojekyll`, `assets/`를 업로드합니다. Settings → Pages → Deploy from a branch → main / (root) → Save.
+- GitHub Pages: 저장소 루트에 `index.html`, `app.js`, `sky-assets.js`, `sectors.js`, `space.js`, `bridge-layout.js`, `marie.js`, `bridge-room.js`, `events.js`, `navigation-map.js`, `bridge-audio.js`, `style.css`, `.nojekyll`, `assets/`를 업로드합니다. Settings → Pages → Deploy from a branch → main / (root) → Save.
 - 별도 빌드 과정 없음. 일반 정적 호스트 또는 로컬 `python -m http.server 8000`으로도 실행할 수 있습니다.
 
 ## 조작법
@@ -31,6 +31,12 @@
 | 접근 / 이탈 / 정지 | 관측 항로를 따라 가까운 쪽(100%) 또는 먼 쪽(0%)으로 이동. 정지 버튼이나 슬라이더로 자동 이동을 중단 |
 | 관측 순회 | 실시간 3D 구역에서 접근 → 관측 → 선회 → 이탈. 순회 정지, 슬라이더, 시야 조작으로 중단 |
 | 우주 상황 | 현재 구역에서 가능한 상황을 선택해 관측. 자동 상황은 구역과 항로에 맞춰 발생 |
+
+### 거주형 함교
+
+**함교 이동** 또는 V로 실내에 들어갑니다. 가까운 좌석·콘솔·출입문은 F나 화면 버튼으로 조작합니다. 처음 위치에서 함장석에 앉을 수 있습니다. 후방 중앙 통로를 따라 압력문을 지나면 별을 볼 수 있는 라운지와 좌석이 있습니다. F나 같은 버튼으로 일어나거나 Esc로 관측 시점에 돌아갑니다. Shift/Space로 높이를 바꾸는 기존 조작도 유지됩니다.
+
+좌현 과학 콘솔은 항해 지도를, 우현 통신 콘솔은 음향을 조작합니다. 이동 화면에서 일반/야간 조명과 음량을 선택할 수 있습니다. 함교 음향을 켜면 카메라 위치·방향에 따라 엔진, 순환기, 레이더, 문, 발걸음의 좌우 위치와 크기가 바뀝니다. 구역 광원과 워프 색조는 실내 조명에도 반영됩니다.
 
 ## 탐사 구역 (32)
 

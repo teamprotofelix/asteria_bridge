@@ -14,8 +14,8 @@ const AsteriaMarie = (() => {
 
   function activity(seconds, reduced) {
     const phase = seconds % 34;
-    const front = [1.60, 3.05];
-    const aft = [2.62, -1.60];
+    const {forwardInspection: [fx,,fz], aftInspection: [ax,,az]} = AsteriaInterior.waypoints;
+    const front = [fx, fz], aft = [ax, az];
     let point = front, direction = phase >= 3 && phase < 7 ? .27 : 0, step = 0;
     let label = '계기판 점검';
     if (phase >= 7 && phase < 15) {

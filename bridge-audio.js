@@ -1,7 +1,11 @@
 'use strict';
 
 const AsteriaAudio = (() => {
+  const locations = {engine:[-1.4,-1.5,-3.7], fan:[3.7,1.8,1.1],
+    radar:[0,-.9,3.45], contact:[-3.93,-.9,1.9], hatch:[0,-.4,-4.86]};
+
   function buildGraph(context) {
+    const panners = new Map();
     const master = context.createGain();
     master.gain.value = 0;
     master.connect(context.destination);
@@ -9,22 +13,22 @@ const AsteriaAudio = (() => {
     function place(gain, pan) {
       if (!context.createStereoPanner) {
         gain.connect(master);
-        return () => gain.disconnect();
+        return {disconnect: () => gain.disconnect()};
       }
       const placement = context.createStereoPanner();
       placement.pan.value = pan;
       gain.connect(placement);
       placement.connect(master);
-      return () => {
+      return {pan: placement.pan, disconnect() {
         gain.disconnect();
         placement.disconnect();
-      };
+      }};
     }
 
     function bus(pan) {
       const gain = context.createGain();
       gain.gain.value = 0;
-      place(gain, pan);
+      panners.set(gain, place(gain, pan).pan);
       return gain;
     }
 
@@ -68,29 +72,36 @@ const AsteriaAudio = (() => {
     tone(ambientRight, 164.81);
     tone(ambientRight, 219.4);
 
-    function cue(type) {
+    function cue(type, point, state) {
       const cues = {
         radar: [910, 740, .14, .075, -.54],
         contact: [620, 970, .23, .09, -.38],
         hatch: [245, 122, .32, .12, .68],
+        step: [135, 54, .105, .079, 0],
       };
       const [from, to, seconds, level, pan] = cues[type];
       const gain = context.createGain();
       gain.gain.value = 0;
-      const disconnect = place(gain, pan);
-      const sound = tone(gain, from, type === 'hatch' ? 'triangle' : 'sine');
+      const position = point ?? locations[type];
+      const spatial = position && positionMix(position, state);
+      const placement = place(gain, spatial?.pan ?? pan);
+      const sound = tone(gain, from, type === 'hatch' || type === 'step' ? 'triangle' : 'sine');
       const now = context.currentTime;
-      gain.gain.linearRampToValueAtTime(level, now + .025);
+      gain.gain.linearRampToValueAtTime(level * (spatial?.level ?? 1), now + .025);
       gain.gain.exponentialRampToValueAtTime(.001, now + seconds);
       sound.frequency.exponentialRampToValueAtTime(to, now + seconds);
       sound.stop(now + seconds + .01);
       sound.onended = () => {
         sound.disconnect();
-        disconnect();
+        placement.disconnect();
       };
     }
 
-    return {context, master, engine, bass, harmonic, fan, warp, coil, ambientLeft, ambientRight, cue};
+    return {context, master, engine, bass, harmonic, fan, warp, coil, ambientLeft, ambientRight, cue, panners};
+  }
+
+  function positionMix(source, {listener = [0,0,0], right = [1,0,0]}) {
+    return AsteriaInterior.acoustics(source, listener, right);
   }
 
   function create() {
@@ -103,7 +114,7 @@ const AsteriaAudio = (() => {
 
     function apply() {
       if (!graph) return;
-      const {throttle, warp, ambient, hidden} = current;
+      const {throttle, warp, ambient, hidden, volume = 1} = current;
       const {context, master, engine, bass, harmonic, fan, coil, ambientLeft, ambientRight} = graph;
       function target(parameter, value) {
         if (targets.get(parameter) === value) return;
@@ -112,11 +123,17 @@ const AsteriaAudio = (() => {
         parameter.cancelScheduledValues(now);
         parameter.setTargetAtTime(value, now, .09);
       }
-      target(master.gain, enabled && !hidden ? .42 : 0);
-      target(engine.gain, ambient ? .025 + throttle * .00035 : .095 + throttle * .0014);
+      function placeBus(bus, source, gain) {
+        const spatial = positionMix(source, current);
+        const pan = graph.panners.get(bus);
+        if (pan) target(pan, spatial.pan);
+        target(bus.gain, gain*spatial.level);
+      }
+      target(master.gain, enabled && !hidden ? .42*volume : 0);
+      placeBus(engine, locations.engine, ambient ? .025 + throttle * .00035 : .095 + throttle * .0014);
       target(bass.frequency, 36 + throttle * .27);
       target(harmonic.frequency, 72 + throttle * .54);
-      target(fan.gain, ambient ? .13 : .25);
+      placeBus(fan, locations.fan, ambient ? .13 : .25);
       const envelope = warp === null ? 0 : Math.max(0, Math.min(1, warp * 4, (1 - warp) * 4));
       target(graph.warp.gain, envelope * (ambient ? .13 : .32));
       target(coil.frequency, warp === null ? 76 : 76 + 178 * warp);
@@ -166,8 +183,8 @@ const AsteriaAudio = (() => {
         current = next;
         apply();
       },
-      cue(type) {
-        if (enabled && !current.hidden && graph.context.state === 'running') graph.cue(type);
+      cue(type, point) {
+        if (enabled && !current.hidden && graph.context.state === 'running') graph.cue(type, point, current);
       },
     };
   }
