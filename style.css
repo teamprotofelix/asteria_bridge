@@ -37,7 +37,7 @@
   margin: 0;
   accent-color: var(--cyan);
 }
-.route-actions button {
+.route-actions button, .route-tour button {
   min-height: 26px;
   padding: 2px 6px;
   border: 1px solid var(--line);
@@ -111,4 +111,19 @@
     color: #bdebf3;
     touch-action: none;
   }
+}
+
+.route-tour {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+}
+#tourPhase {
+  color: var(--cyan);
+  font: 10px var(--mono);
+}
+#sectorCount {
+  color: var(--muted);
+  margin-inline-start: 3px;
 }

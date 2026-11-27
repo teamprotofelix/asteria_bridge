@@ -289,10 +289,88 @@ def test_bridge_touch(browser, url):
     page.close()
 
 
+def test_expanded_sectors(browser, url):
+    page, errors = boot(browser, url, "RENDER / WEBGL 3D")
+    expect(page.locator("#sectorCount")).to_have_text("32개")
+    expect(page.locator("#destinationSelect option")).to_have_count(32)
+    assert page.locator("#destinationSelect optgroup").evaluate_all(
+        "groups => groups.map(group => [group.label, group.children.length])"
+    ) == [["기존 탐사 구역", 9], ["항성계", 5], ["외계 행성", 8], ["심우주", 5], ["미지 문명", 5]]
+
+    for option, title, code in [(10, "KALLISTO", "ST-02"), (17, "CRYON", "PL-04"),
+                                (25, "UNDERTOW", "DS-04"), (27, "HALO GATE", "CX-01")]:
+        travel(page, option, title, "RENDER / WEBGL 3D")
+        expect(page.locator("#routeCode")).to_have_text(code)
+        expect(page.locator("#surfaceDistance")).to_contain_text("SU")
+
+    tour = page.locator("#tourBtn")
+    phase = page.locator("#tourPhase")
+    expect(tour).to_be_enabled()
+    tour.click()
+    for text in ["1/4 접근", "2/4 관측", "3/4 선회", "4/4 이탈", "순회 완료"]:
+        expect(phase).to_have_text(text, timeout=12_000)
+    expect(page.locator("#approach")).to_have_value("0")
+    tour.click()
+    expect(phase).to_have_text("1/4 접근")
+    page.locator("#approach").fill("42")
+    expect(phase).to_have_text("순회 중단")
+    expect(page.locator("#approach")).to_have_value("42")
+    tour.click()
+    page.locator("#view").focus()
+    page.keyboard.down("d")
+    expect(phase).to_have_text("순회 중단")
+    page.keyboard.up("d")
+    assert not errors, errors
+    page.close()
+
+
+def test_animated_tour(browser, url):
+    page = browser.new_page(viewport={"width": 780, "height": 580})
+    page.add_init_script("""
+        let pending, now = performance.now();
+        window.requestAnimationFrame = callback => { pending = callback; };
+        window.stepTour = count => {
+            // Keep real draws and advance the frame clock independently of GPU speed.
+            for (let i = 0; i < count; i++) pending(now += 110);
+        };
+        window.readEye = () => {
+            const gl = document.querySelector('#skyView').getContext('webgl');
+            const program = gl.getParameter(gl.CURRENT_PROGRAM);
+            return Array.from(gl.getUniform(program, gl.getUniformLocation(program, 'eye')));
+        };
+    """)
+    page.goto(url)
+    tour = page.locator("#tourBtn")
+    phase = page.locator("#tourPhase")
+    slider = page.locator("#approach")
+    expect(tour).to_be_enabled(timeout=20_000)
+    page.evaluate("stepTour(1)")
+    tour.click()
+    page.evaluate("stepTour(18)")
+    assert 30 < int(slider.input_value()) < 83
+    page.evaluate("stepTour(15)")
+    expect(phase).to_have_text("2/4 관측")
+    page.evaluate("stepTour(22)")
+    expect(phase).to_have_text("3/4 선회")
+    before = page.evaluate("readEye()")
+    page.evaluate("stepTour(25)")
+    after = page.evaluate("readEye()")
+    assert abs(before[0] - after[0]) > .5
+    expect(slider).to_have_value("83")
+    page.evaluate("stepTour(14)")
+    expect(phase).to_have_text("4/4 이탈")
+    page.evaluate("stepTour(33)")
+    expect(phase).to_have_text("순회 완료")
+    expect(slider).to_have_value("0")
+    page.close()
+
+
 def test_fallbacks(browser, url):
     page, errors = boot(browser, url, "RENDER / CANVAS 360°", mobile=True, disable_gpu=True)
     expect(page.locator("#approach")).to_be_hidden()
     travel(page, 4, "GAIA", "RENDER / CANVAS 360°")
+    travel(page, 27, "HALO GATE", "RENDER / CANVAS 360°")
+    expect(page.locator("#tourBtn")).to_be_hidden()
     assert not errors, errors
     page.close()
 
@@ -427,6 +505,9 @@ def main():
                 test_bridge_mesh_fallback(browser, url)
                 test_bridge_touch(browser, url)
                 print("PASS: 3D bridge, movement, mode transitions, touch and mesh fallback", flush=True)
+                test_expanded_sectors(browser, url)
+                test_animated_tour(browser, url)
+                print("PASS: 32 destinations, sector groups and observation tour", flush=True)
                 test_fallbacks(browser, url)
                 test_upload_failure(browser, url)
                 print("PASS: Texture OOM on surface, bridge and destination cubemap", flush=True)

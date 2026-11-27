@@ -5,7 +5,7 @@
 <section class="viewhud" aria-label="항해 시야 정보"><div class="hudleft"><span class="eyebrow">NAV / 360° OPTICAL ARRAY</span><div class="hudline"></div><span>HEADING <b id="heading">000.0°</b></span><span>PITCH <b id="pitchRead">+00.0°</b></span><span>ROLL <b id="rollRead">+00.0°</b></span></div><div class="hudright"><span class="eyebrow">ASTRONOMICAL OBSERVATION</span><div class="hudline"></div><span>SECTOR <b id="sector">OR-07</b></span><span>TRACKING <b id="tracking">NEREID</b></span><span>VIEW <b id="viewMode">MANUAL</b></span></div><div class="compass"><span id="compassText">FWD · 000°</span><div class="compassline"></div><i></i></div><div class="reticle"><span></span><span></span><span></span><span></span><i></i></div><div class="viewhint" id="viewHint">W A S D · 드래그 · Q/E 롤 · R 정면 · C 관측</div></section>
 <div class="eventbanner" id="eventBanner" hidden><div class="eventpulse"></div><div><small>FLIGHT EVENT / SIMULATION</small><strong id="eventName"></strong><span id="eventDescription"></span></div></div>
 <section class="console" aria-label="함교 조작 계기판">
-<div class="panel navpanel"><div class="panelhead"><span><i></i> NAVIGATION</span><span>01 / 航路</span></div><div class="desttitle"><small>현재 관측 구역</small><strong id="destinationName">NEREID</strong><span id="destinationDesc">고리형 가스 행성</span></div><div class="routecontrol"><label for="destinationSelect">목적지 선택</label><select id="destinationSelect" disabled></select><button id="travel" disabled class="primary">항해 →</button></div><div id="approachControl" hidden>
+<div class="panel navpanel"><div class="panelhead"><span><i></i> NAVIGATION</span><span>01 / 航路</span></div><div class="desttitle"><small>현재 관측 구역</small><strong id="destinationName">NEREID</strong><span id="destinationDesc">고리형 가스 행성</span></div><div class="routecontrol"><label for="destinationSelect">목적지 선택 <small id="sectorCount"></small></label><select id="destinationSelect" disabled></select><button id="travel" disabled class="primary">항해 →</button></div><div id="approachControl" hidden>
   <div class="route-slider">
     <label for="approach">관측 항로 <output id="approachRead" for="approach" aria-live="off">30%</output></label>
     <input id="approach" type="range" min="0" max="100" value="30" disabled>
@@ -14,6 +14,10 @@
     <div class="route-distance"><span id="rangeLabel">천체 표면</span> <span id="surfaceDistance" title="시뮬레이션 거리 단위">—</span></div>
     <button id="approachFar" type="button" disabled>이탈</button>
     <button id="approachNear" type="button" disabled>접근</button>
+  </div>
+  <div class="route-tour">
+    <button id="tourBtn" type="button" disabled>관측 순회</button>
+    <span id="tourPhase" role="status" aria-live="polite"></span>
   </div>
 </div><div class="panelbottom"><span>FLIGHT PLAN <b id="routeCode">OR-07</b></span><span>● LOCKED</span></div></div>
 <div class="panel mainpanel"><div class="panelhead"><span><i></i> FLIGHT CONTROL</span><span id="modeLabel">SUBLIGHT DRIVE</span></div><div class="mainread"><div><small>순항 속도 / SIMULATED</small><div class="speed"><strong id="speedRead">0.24</strong><span>c</span></div></div><button class="warp" id="warp" disabled><span class="warpicon">✦</span><div><b>워프 항해</b><small>ENGAGE WARP</small></div></button></div><div class="throttle"><label for="speed">THROTTLE <b id="throttlePct">35%</b></label><input id="speed" type="range" min="0" max="100" value="35"><div class="scale"><span>정지</span><span>순항</span><span>최대</span></div></div><div class="controls"><button id="autopilot" aria-pressed="false">◇ 자동 시야</button><button id="reset">↺ 정면 복귀</button><button id="cinema" aria-pressed="false">▣ 관측 모드</button><button id="walkToggle" aria-pressed="false" disabled>함교 이동</button></div></div>
@@ -26,9 +30,9 @@
 <button class="walk-only" data-key="q" aria-label="왼쪽 롤">↶</button>
 <button class="walk-only" data-key="e" aria-label="오른쪽 롤">↷</button></div>
 <footer><span>ASTERIA FLIGHT OS <b>2.0.0</b></span><span>FICTIONAL SPACE SIMULATION · 360° OBSERVATION</span><span id="renderMode">RENDER / STANDBY</span></footer><button id="exitCinema" hidden>▣ 함교 조작 복귀</button><div id="toast" role="status" aria-live="polite"></div>
-<dialog id="helpDialog"><h2>항해 조작 매뉴얼</h2><p>마우스 또는 터치 드래그로 전 방향을 바라봅니다. 수직 회전도 360°입니다. 함교 이동에서는 WASD 및 방향키로 앞뒤와 좌우로 이동하고, Space/Shift로 높이를 바꿉니다. 마우스나 터치 드래그로 방향을 바꾸고 Q/E로 롤을 조작합니다. V로 함교 이동을 전환하고 Esc로 항해에 복귀합니다. 3D 관측 구역에서는 접근·이탈 버튼이나 관측 항로 슬라이더로 함선을 이동합니다. 이동 중에는 정지 버튼을 누르거나 슬라이더를 조작해 멈출 수 있습니다. 네레이드 항로는 고리 평면을 통과합니다.</p><table><tr><th>W / S · ↑ / ↓</th><td>상하 회전</td></tr><tr><th>A / D · ← / →</th><td>좌우 회전</td></tr><tr><th>Q / E</th><td>롤 회전</td></tr><tr><th>R / 더블 클릭</th><td>정면 및 롤 초기화</td></tr><tr><th>C / Esc</th><td>관측 모드 전환 / 종료</td></tr><tr><th>+ / − 또는 마우스 휠</th><td>시야각 확대 / 축소</td></tr><tr><th>함교 ON/OFF</th><td>구조물 숨김 / 표시</td></tr></table><p>목적지를 선택하고 항해 버튼을 누르면 워프합니다. 우주 상황은 수동 또는 자동으로 경험할 수 있습니다.</p><button id="closeHelp" class="primary">닫기</button></dialog>
+<dialog id="helpDialog"><h2>항해 조작 매뉴얼</h2><p>마우스 또는 터치 드래그로 전 방향을 바라봅니다. 수직 회전도 360°입니다. 함교 이동에서는 WASD 및 방향키로 앞뒤와 좌우로 이동하고, Space/Shift로 높이를 바꿉니다. 마우스나 터치 드래그로 방향을 바꾸고 Q/E로 롤을 조작합니다. V로 함교 이동을 전환하고 Esc로 항해에 복귀합니다. 3D 관측 구역에서는 접근·이탈 버튼이나 관측 항로 슬라이더로 함선을 이동합니다. 이동 중에는 정지 버튼을 누르거나 슬라이더를 조작해 멈출 수 있습니다. 네레이드 항로는 고리 평면을 통과합니다. 관측 순회를 누르면 접근, 관측, 선회, 이탈 순서로 이동합니다. 순회를 중단하거나 시야·슬라이더를 직접 조작할 수 있습니다.</p><table><tr><th>W / S · ↑ / ↓</th><td>상하 회전</td></tr><tr><th>A / D · ← / →</th><td>좌우 회전</td></tr><tr><th>Q / E</th><td>롤 회전</td></tr><tr><th>R / 더블 클릭</th><td>정면 및 롤 초기화</td></tr><tr><th>C / Esc</th><td>관측 모드 전환 / 종료</td></tr><tr><th>+ / − 또는 마우스 휠</th><td>시야각 확대 / 축소</td></tr><tr><th>함교 ON/OFF</th><td>구조물 숨김 / 표시</td></tr></table><p>목적지를 선택하고 항해 버튼을 누르면 워프합니다. 우주 상황은 수동 또는 자동으로 경험할 수 있습니다.</p><button id="closeHelp" class="primary">닫기</button></dialog>
 <div id="startupPanel">
   <p id="startupStatus" role="status">관측창 에셋을 불러오는 중입니다.</p>
   <button id="retryStartup" type="button" class="primary" hidden>다시 시도</button>
 </div>
-</main><script src="space.js" defer></script><script src="bridge-room.js" defer></script><script src="app.js" defer></script></body></html>
+</main><script src="sectors.js" defer></script><script src="space.js" defer></script><script src="bridge-room.js" defer></script><script src="app.js" defer></script></body></html>
