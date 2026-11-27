@@ -11,8 +11,14 @@ const events = AsteriaEvents.catalog;
 let eventOptionsKey = '';
 let wasInRing = false;
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, keys=new Set();
-let yaw=0,pitch=0,roll=0,zoom=1,focal=500,w=1,h=1,dpr=1,throttle=35,auto=false,cinema=false,room=true,dest=0,warp=null,loading=false,event=null,random=false,nextEvent=0,drag=null,last=performance.now(),elapsed=0,toastTimer,clockSec=-1,sound=false,audioCtx=null,audioOsc=null,audioGain=null;
+let yaw=0,pitch=0,roll=0,zoom=1,focal=500,w=1,h=1,dpr=1,throttle=35,auto=false,cinema=false,room=true,dest=0,warp=null,loading=false,event=null,random=false,nextEvent=0,drag=null,last=performance.now(),elapsed=0,toastTimer,clockSec=-1;
 const wrap=a=>((a+180)%360+360)%360-180, clamp=(x,a,b)=>Math.max(a,Math.min(b,x)), rad=Math.PI/180;
+const soundscape = AsteriaAudio.create();
+let watch = null, audioWarp = null, nextAudioUpdate = 0, nextRadarCue = 0;
+let hatchOpen = false, hatchSlide = 0;
+const watchSeconds = 45;
+const watchRoute = ['nereid', 'gaia', 'halogate', 'nebula', 'cryon', 'helion', 'undertow', 'hush'];
+
 let walking = false;
 let walkPosition = [...AsteriaBridge.origin];
 let walkOrientation = AsteriaBridge.orientation(0, 0, 0);
@@ -218,7 +224,7 @@ function gpuLayer(canvas, alpha) {
     }
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     if (bridgeMesh) {
-      bridgeMesh.draw(matrix, walkPosition, width / (2*focal), height / (2*focal));
+      bridgeMesh.draw(matrix, walkPosition, width / (2*focal), height / (2*focal), hatchSlide);
       return;
     }
     const shader = geometry ? spaceProgram : cubeProgram;
@@ -357,7 +363,7 @@ function renderCamera(now, frameMs) {
   if (!ready) return;
   if (renderer.sky.geometry && !reduced) adaptQuality(now, frameMs);
   const angles = walking ? walkOrientation : [yaw, pitch, roll];
-  const key = [...angles, zoom, w, h, room, revision].join('/');
+  const key = [...angles, zoom, w, h, room, hatchSlide, revision].join('/');
   const roomPosition = walkPosition.join('/');
   const roomMoved = roomPosition !== drawnRoomPosition;
   const changed = key !== drawn && key + '/static' !== drawn;
@@ -626,6 +632,7 @@ async function startBridge() {
   } finally {
     loading = false;
     navigationMap.setBusy(!ready);
+    updateWatchControls();
     updateWalkControls();
     updateRouteControls();
   }
@@ -681,12 +688,101 @@ function setWalking(on) {
   revision++;
 }
 function setCinema(on) {
+  const active = document.activeElement;
+  const restoreFocus = active === $('exitCinema') || $('observationControls').contains(active);
   if (on && walking) setWalking(false);
+  if (!on && watch) stopWatch();
   cinema = on;
   $('bridge').classList.toggle('cinematic', on);
   $('cinema').setAttribute('aria-pressed', String(on));
   $('exitCinema').hidden = !on;
+  updateWatchControls();
   updateWalkControls();
+  if (!on && restoreFocus) $('cinema').focus({preventScroll: true});
+}
+
+function updateWatchControls() {
+  $('bridge').classList.toggle('watching', !!watch);
+  $('observationControls').hidden = !cinema;
+  $('watchStart').hidden = !!watch;
+  $('watchStart').disabled = !ready || loading || !!warp;
+  $('watchNext').hidden = !watch;
+  $('watchNext').disabled = loading || !!warp;
+  $('exitCinema').textContent = watch ? '자동 관측 종료' : '▣ 함교 조작 복귀';
+}
+
+function startWatch() {
+  if (!cinema || !ready || loading || warp || watch) return;
+  stopRoute();
+  if (event) endEvent();
+  const prior = {auto, room};
+  watch = {prior, index: watchRoute.indexOf(destinations[dest][0]), remaining: watchSeconds};
+  setAuto(false);
+  setRoom(true);
+  updateWatchControls();
+  updateAudio();
+  $('exitCinema').focus({preventScroll: true});
+}
+
+function stopWatch() {
+  const {prior} = watch;
+  watch = null;
+  setAuto(prior.auto);
+  setRoom(prior.room);
+  updateAudio();
+}
+
+function advanceWatch(dt) {
+  if (!watch || loading || warp || document.hidden) return;
+  watch.remaining -= watch.skipFrame ? 0 : dt;
+  watch.skipFrame = false;
+  if (watch.remaining > 0) return;
+  const session = watch;
+  session.index = (session.index + 1) % watchRoute.length;
+  session.remaining = watchSeconds;
+  const candidate = destinations.findIndex(([id]) => id === watchRoute[session.index]);
+  void engage(candidate, session);
+}
+
+function updateAudio() {
+  soundscape.mix({throttle, warp: audioWarp, ambient: !!watch, hidden: document.hidden});
+}
+
+function refreshSoundControls() {
+  const enabled = soundscape.enabled;
+  const label = '음향 ' + (enabled ? 'ON' : 'OFF');
+  $('sound').setAttribute('aria-pressed', String(enabled));
+  $('sound').querySelector('span').textContent = label;
+  $('watchSound').setAttribute('aria-pressed', String(enabled));
+  $('watchSound').textContent = label;
+}
+
+async function toggleSound() {
+  try {
+    await soundscape.toggle();
+  } catch {
+    notify('음향을 사용할 수 없습니다.');
+  }
+  refreshSoundControls();
+}
+
+function advanceAudio(now) {
+  if (!soundscape.enabled || document.hidden || now < nextAudioUpdate) return;
+  nextAudioUpdate = now + 85;
+  updateAudio();
+  if (!watch && !warp && now >= nextRadarCue) {
+    soundscape.cue('radar');
+    nextRadarCue = now + 12500;
+  }
+}
+
+function updateHatch(dt) {
+  const sensor = walking && walkPosition[2] < (hatchOpen ? -2.15 : -2.55) && Math.abs(walkPosition[0]) < 1.12;
+  if (hatchOpen !== sensor) {
+    hatchOpen = sensor;
+    soundscape.cue('hatch');
+  }
+  hatchSlide = reduced ? Number(hatchOpen) : clamp(hatchSlide + (hatchOpen ? 1 : -1) * dt * 2, 0, 1);
 }
 function setRoom(on) {
   if (!on && walking) setWalking(false);
@@ -716,8 +812,22 @@ if(e.type==='signal'){let a=project(1.2,.7,3);if(a){ctx.strokeStyle=`rgba(110,25
   if (event) AsteriaEvents.draw(event, elapsed, {ctx, width: w, height: h, project, reduced});
 }
 function drawRadar(t){let r=radar;r.clearRect(0,0,160,160);r.save();r.translate(80,80);r.strokeStyle='#305166';r.lineWidth=1;for(let i=1;i<=4;i++){r.beginPath();r.arc(0,0,i*17,0,7);r.stroke();}r.beginPath();r.moveTo(-68,0);r.lineTo(68,0);r.moveTo(0,-68);r.lineTo(0,68);r.stroke();let a=t*.9;let g=r.createRadialGradient(0,0,0,0,0,68);g.addColorStop(0,'#6deeea00');g.addColorStop(1,'#6deeea15');r.fillStyle=g;r.beginPath();r.moveTo(0,0);r.arc(0,0,68,a-.65,a);r.closePath();r.fill();r.strokeStyle='#69e3df';r.beginPath();r.moveTo(0,0);r.lineTo(Math.cos(a)*68,Math.sin(a)*68);r.stroke();for(let i=0;i<5;i++){let angle=i*2.5+dest*.4-yaw*rad,dist=17+i*10;r.fillStyle=event&&i===0?'#ffbf76':'#79e2dc';r.beginPath();r.arc(Math.cos(angle)*dist,Math.sin(angle)*dist,i===0?3:1.8,0,7);r.fill();}r.fillStyle='#d8ffff';r.fillRect(-2,-2,4,4);r.restore();}
-function updateSpeed(wa=0){$('throttlePct').textContent=Math.round(throttle)+'%';$('power').textContent=Math.round(throttle)+'%';$('powerBar').style.width=throttle+'%';$('speedRead').textContent=wa>.2?(1+wa*8).toFixed(2):(throttle*.0068).toFixed(2);if(audioGain){audioGain.gain.setTargetAtTime(sound?.015+throttle*.0003+wa*.035:0,audioCtx.currentTime,.2);audioOsc.frequency.setTargetAtTime(39+throttle*.3+wa*40,audioCtx.currentTime,.2);}}
-async function engage(n = null) {
+function updateSpeed(wa = 0) {
+  $('throttlePct').textContent = Math.round(throttle) + '%';
+  $('power').textContent = Math.round(throttle) + '%';
+  $('powerBar').style.width = throttle + '%';
+  $('speedRead').textContent = wa > .2 ? (1 + wa*8).toFixed(2) : (throttle*.0068).toFixed(2);
+}
+
+function setTravelBusy(busy) {
+  navigationMap.setBusy(busy);
+  $('warp').disabled = $('travel').disabled = $('destinationSelect').disabled = busy;
+  updateWalkControls();
+  updateRouteControls();
+  updateWatchControls();
+}
+
+async function engage(n = null, session = null) {
   if (warp || loading) return;
   if (!ready) {
     notify('초기 우주 에셋 준비 중입니다.');
@@ -725,33 +835,56 @@ async function engage(n = null) {
   }
   setWalking(false);
   loading = true;
-  navigationMap.setBusy(true);
-  updateWalkControls();
   stopRoute();
-  $('warp').disabled = $('travel').disabled = $('destinationSelect').disabled = true;
+  setTravelBusy(true);
   $('flightStatus').textContent = '항로 계산 중';
   try {
     const images = n !== null && n !== dest ? await loadSky(n) : null;
+    if (session && watch !== session) return;
     if (event) endEvent();
     warp = {start: performance.now(), next: n, changed: false, images};
+    audioWarp = 0;
     navigationMap.begin(n);
     $('warp').classList.add('engaged');
     $('warp').querySelector('b').textContent = '워프 진행 중';
     $('flightStatus').textContent = '워프 항해 중';
     $('modeLabel').textContent = 'WARP DRIVE';
-    notify(n === null ? '워프 드라이브 가동' : destinations[n][1] + ' 항로 설정 · 워프 개시');
-  } catch (error) {
-    const message = '목적지 이미지 로드 실패. 현재 구역 유지.';
-    navigationMap.fail(message);
-    notify(message);
-    $('warp').disabled = $('travel').disabled = $('destinationSelect').disabled = false;
-    $('flightStatus').textContent = '순항 항해 중';
+    if (!watch) notify(n === null ? '워프 드라이브 가동' : destinations[n][1] + ' 항로 설정 · 워프 개시');
+  } catch {
+    if (!session || watch === session) {
+      const message = '목적지 이미지 로드 실패. 현재 구역 유지.';
+      navigationMap.fail(message);
+      notify(message);
+    }
   } finally {
     loading = false;
-    navigationMap.setBusy(!!warp);
-    updateWalkControls();
-    updateRouteControls();
+    setTravelBusy(!!warp);
+    if (!warp) $('flightStatus').textContent = '순항 항해 중';
   }
+}
+
+function advanceWarp(now) {
+  if (!warp) return 0;
+  const p = clamp((now - warp.start) / 3800, 0, 1);
+  audioWarp = p;
+  navigationMap.progress(p);
+  if (p > .48 && !warp.changed) {
+    warp.changed = true;
+    if (warp.next !== null) setDest(warp.next, warp.images);
+    reset();
+  }
+  if (p < 1) return reduced ? 0 : clamp(Math.min(p*5, (1-p)*4), 0, 1);
+
+  warp = null;
+  audioWarp = null;
+  navigationMap.arrive(dest);
+  setTravelBusy(false);
+  $('warp').classList.remove('engaged');
+  $('warp').querySelector('b').textContent = '워프 항해';
+  $('flightStatus').textContent = '순항 항해 중';
+  $('modeLabel').textContent = 'SUBLIGHT DRIVE';
+  if (!watch) notify('워프 종료 · 관측 구역 도착');
+  return 0;
 }
 
 function eventContext() {
@@ -808,6 +941,7 @@ function startEvent(type, context = eventContext()) {
   $('eventBanner').hidden = false;
   $('environment').textContent = entry.code;
   notify(entry.name + ' · 관측 상황 개시');
+  if (!watch && ['signal', 'distress', 'flyby'].includes(type)) soundscape.cue('contact');
 }
 
 for (const [type, entry] of Object.entries(events)) {
@@ -848,7 +982,7 @@ function updateEvents() {
   }
   const enteredRing = context.ring && !wasInRing;
   wasInRing = context.ring;
-  if (!random || event || warp || loading) return;
+  if (!random || event || warp || loading || watch) return;
   if (enteredRing || elapsed >= nextEvent) {
     const available = Object.keys(events).filter(type => AsteriaEvents.eligible(type, context));
     const type = enteredRing ? 'ring' : available[Math.floor(Math.random() * available.length)];
@@ -856,8 +990,12 @@ function updateEvents() {
     nextEvent = elapsed + 30 + Math.random() * 30;
   }
 }
-$('travel').onclick=()=>engage(+$('destinationSelect').value);$('warp').onclick=()=>engage();$('speed').oninput=e=>{throttle=+e.target.value;updateSpeed();};$('autopilot').onclick=()=>{if(tour)stopRoute();setWalking(false);setAuto(!auto);};$('walkToggle').onclick=()=>{setWalking(!walking);$('view').focus({preventScroll:true});};$('reset').onclick=reset;$('cinema').onclick=()=>setCinema(true);$('exitCinema').onclick=()=>setCinema(false);$('roomToggle').onclick=()=>setRoom(!room);$('eventBtn').onclick=()=>startEvent($('eventSelect').value);$('randomEvent').onclick=()=>{random=!random;nextEvent=elapsed+6;$('randomEvent').textContent='자동 상황 '+(random?'ON':'OFF');$('randomEvent').setAttribute('aria-pressed',String(random));};$('help').onclick=()=>$('helpDialog').showModal();$('closeHelp').onclick=()=>$('helpDialog').close();$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{notify('전체 화면을 지원하지 않거나 차단되었습니다.');}};
-$('sound').onclick=async()=>{try{if(!audioCtx){let AC=window.AudioContext||window.webkitAudioContext;audioCtx=new AC();audioOsc=audioCtx.createOscillator();audioOsc.type='sine';audioGain=audioCtx.createGain();audioGain.gain.value=0;audioOsc.connect(audioGain).connect(audioCtx.destination);audioOsc.start();}await audioCtx.resume();sound=!sound;$('sound').setAttribute('aria-pressed',String(sound));$('sound').querySelector('span').textContent='음향 '+(sound?'ON':'OFF');updateSpeed();}catch{notify('음향을 사용할 수 없습니다.');}};
+$('travel').onclick=()=>engage(+$('destinationSelect').value);$('warp').onclick=()=>engage();$('speed').oninput=e=>{throttle=+e.target.value;updateSpeed();updateAudio();};$('autopilot').onclick=()=>{if(tour)stopRoute();setWalking(false);setAuto(!auto);};$('walkToggle').onclick=()=>{setWalking(!walking);$('view').focus({preventScroll:true});};$('reset').onclick=reset;$('cinema').onclick=()=>setCinema(true);$('exitCinema').onclick=()=>setCinema(false);$('roomToggle').onclick=()=>setRoom(!room);$('eventBtn').onclick=()=>startEvent($('eventSelect').value);$('randomEvent').onclick=()=>{random=!random;nextEvent=elapsed+6;$('randomEvent').textContent='자동 상황 '+(random?'ON':'OFF');$('randomEvent').setAttribute('aria-pressed',String(random));};$('help').onclick=()=>$('helpDialog').showModal();$('closeHelp').onclick=()=>$('helpDialog').close();$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{notify('전체 화면을 지원하지 않거나 차단되었습니다.');}};
+$('sound').onclick = $('watchSound').onclick = toggleSound;
+$('watchStart').onclick = startWatch;
+$('watchNext').onclick = () => {
+  if (watch) watch.remaining = 0;
+};
 const view=$('view');view.addEventListener('pointerdown',e=>{if(e.button!==0)return;setAuto(false);view.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,id:e.pointerId};view.setPointerCapture(e.pointerId);});view.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;turnView(-(e.clientX-drag.x)*.19,(e.clientY-drag.y)*.19);drag.x=e.clientX;drag.y=e.clientY;});for(let ev of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(ev,()=>drag=null);view.addEventListener('dblclick',reset);view.addEventListener('wheel',e=>{e.preventDefault();zoomBy(-Math.sign(e.deltaY)*.08);},{passive:false});
 const map={arrowup:'w',arrowdown:'s',arrowleft:'a',arrowright:'d'}, editable=el=>el&&['INPUT','SELECT','TEXTAREA'].includes(el.tagName);
 window.addEventListener('keydown', e => {
@@ -888,7 +1026,14 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup',e=>keys.delete(map[e.key.toLowerCase()]||e.key.toLowerCase()));
 window.addEventListener('blur',()=>{keys.clear();drag=null;});
-document.addEventListener('visibilitychange',()=>{if(document.hidden){keys.clear();resetQualitySamples();}});
+document.addEventListener('visibilitychange', () => {
+  if (watch) watch.skipFrame = true;
+  if (document.hidden) {
+    keys.clear();
+    resetQualitySamples();
+  }
+  updateAudio();
+});
 document.querySelectorAll('[data-key]').forEach(button => {
   const key = button.dataset.key;
   button.addEventListener('click', e => {
@@ -913,11 +1058,17 @@ if (walking) {
   updateCamera();
   moveInside(dt);
 } else {
-  const automatic = auto && !reduced ? 9*dt : 0;
+  const automatic = reduced || drag ? 0 : watch ? 1.2*dt : auto ? 9*dt : 0;
   turnView(step*(Number(keys.has('d')) - Number(keys.has('a'))) + automatic,
     step*(Number(keys.has('w')) - Number(keys.has('s'))), bank);
 }
-let wa=0;if(warp){let p=(now-warp.start)/3800;navigationMap.progress(clamp(p,0,1));wa=reduced?0:clamp(Math.min(p*5,(1-p)*4),0,1);if(p>.48&&!warp.changed){warp.changed=true;if(warp.next!==null)setDest(warp.next,warp.images);reset();}if(p>=1){warp=null;wa=0;navigationMap.arrive(dest);navigationMap.setBusy(false);updateWalkControls();updateRouteControls();$('warp').classList.remove('engaged');$('warp').querySelector('b').textContent='워프 항해';$('warp').disabled=$('travel').disabled=$('destinationSelect').disabled=false;$('flightStatus').textContent='순항 항해 중';$('modeLabel').textContent='SUBLIGHT DRIVE';notify('워프 종료 · 관측 구역 도착');}updateSpeed(wa);}$('warpGlow').style.opacity=wa*.8;
+const wasWarping = !!warp;
+const wa = advanceWarp(now);
+if (wasWarping) updateSpeed(wa);
+$('warpGlow').style.opacity = wa * .8;
+if (!wasWarping) advanceWatch(clamp(frameMs / 1000, 0, 1));
+updateHatch(dt);
+advanceAudio(now);
 advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);let bearing=(yaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(pitch>=0?'+':'')+pitch.toFixed(1)+'°';$('rollRead').textContent=(roll>=0?'+':'')+roll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}requestAnimationFrame(frame);}
 window.addEventListener('resize',resize);if(window.ResizeObserver)new ResizeObserver(layoutControls).observe(document.querySelector('.console'));resize();updateSpeed();requestAnimationFrame(frame);
 })();
