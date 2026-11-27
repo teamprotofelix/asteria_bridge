@@ -1,0 +1,28 @@
+name: Visual regression
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Verify asset hashes and event rules
+        run: node --test tests/assets.test.js tests/events.test.js
+      - name: Install Playwright and Chromium
+        run: |
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install playwright==1.62.0
+          .qa-venv/bin/python -m playwright install --with-deps chromium
+      - name: Run static HTTP browser tests
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          .qa-venv/bin/python tests/browser_smoke.py
+          .qa-venv/bin/python tests/quality_pr9.py
