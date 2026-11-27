@@ -13,3 +13,23 @@
 .eventcontrols{bottom:calc(var(--console-clear,26%) + 8px)}.viewhint{bottom:calc(var(--console-clear,26%) + 49px)}#toast{bottom:calc(var(--console-clear,26%) + 90px)}.cinematic #toast{bottom:70px}
 @media(max-width:760px){.eventcontrols{bottom:calc(var(--console-clear,35%) + 6px)}.viewhint{bottom:calc(var(--console-clear,35%) + 43px)}.touchpad{bottom:calc(var(--console-clear,35%) + 67px)}#toast{bottom:calc(var(--console-clear,35%) + 90px)}.cinematic #toast{bottom:70px}}
 @media(max-height:620px) and (min-width:761px){.viewhint{display:none}}
+
+#approachControl {
+  display: grid;
+  grid-template-columns: auto minmax(40px, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 6px;
+}
+#approachControl label {
+  color: #b8ceda;
+  font: 10px var(--mono);
+  white-space: nowrap;
+}
+#approachRead { color: var(--cyan); }
+#approach {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  accent-color: var(--cyan);
+}
