@@ -476,6 +476,141 @@ def test_navigation_map_mobile(browser, url):
     page.close()
 
 
+def test_bridge_audio(browser, url):
+    page = browser.new_page(reduced_motion="reduce")
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.add_init_script("""
+        const Audio = window.AudioContext;
+        window.bridgeAudioTest = {contexts: 0, gains: [], oscillators: [], loops: 0};
+        window.AudioContext = class extends Audio {
+            constructor() { super(); bridgeAudioTest.contexts++; }
+            createGain() {
+                const node = super.createGain();
+                bridgeAudioTest.gains.push(node);
+                if (!bridgeAudioTest.analyser) {
+                    const analyser = this.createAnalyser();
+                    node.connect(analyser);
+                    bridgeAudioTest.analyser = analyser;
+                }
+                return node;
+            }
+            createOscillator() {
+                const node = super.createOscillator();
+                bridgeAudioTest.oscillators.push(node);
+                return node;
+            }
+            createBufferSource() { bridgeAudioTest.loops++; return super.createBufferSource(); }
+        };
+        window.audioRms = () => {
+            const analyser = bridgeAudioTest.analyser;
+            const data = new Float32Array(analyser.fftSize);
+            analyser.getFloatTimeDomainData(data);
+            return Math.sqrt(data.reduce((sum,v) => sum + v*v, 0) / data.length);
+        };
+    """)
+    page.goto(url)
+    expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 3D", timeout=20_000)
+    assert page.evaluate("bridgeAudioTest.contexts") == 0
+    page.click("#sound")
+    expect(page.locator("#sound")).to_have_attribute("aria-pressed", "true")
+    assert page.evaluate("bridgeAudioTest.contexts") == 1
+    assert page.evaluate("bridgeAudioTest.loops") == 1
+    page.wait_for_function("audioRms() > .002")
+    page.locator("#speed").fill("95")
+    page.wait_for_function("bridgeAudioTest.oscillators[0].frequency.value > 58")
+    count = page.evaluate("bridgeAudioTest.oscillators.length")
+    page.click("#walkToggle")
+    page.keyboard.down("s")
+    page.wait_for_function("""() => {
+        const gl = document.querySelector('#roomView').getContext('webgl');
+        const program = gl.getParameter(gl.CURRENT_PROGRAM);
+        const offset = gl.getUniformLocation(program, 'hatchOffset');
+        return offset && gl.getUniform(program, offset) > 1;
+    }""")
+    page.keyboard.up("s")
+    assert page.evaluate("""count => bridgeAudioTest.oscillators.slice(count)
+        .some(node => node.type === 'triangle' && node.frequency.value >= 120 && node.frequency.value <= 245)""", count)
+    page.click("#cinema")
+    page.click("#watchStart")
+    expect(page.locator("#watchSound")).to_have_attribute("aria-pressed", "true")
+    page.wait_for_function("bridgeAudioTest.gains[4].gain.value > .035")
+    page.evaluate("""
+        Object.defineProperty(document, 'hidden', {configurable: true, value: true});
+        document.dispatchEvent(new Event('visibilitychange'));
+    """)
+    page.wait_for_function("bridgeAudioTest.gains[0].gain.value < .012")
+    page.evaluate("""
+        delete document.hidden;
+        document.dispatchEvent(new Event('visibilitychange'));
+    """)
+    page.click("#watchSound")
+    expect(page.locator("#watchSound")).to_have_attribute("aria-pressed", "false")
+    page.wait_for_function("audioRms() < .002")
+    assert not errors, errors
+    page.close()
+
+
+def test_automatic_observation(browser, url):
+    page = browser.new_page(
+        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, reduced_motion="reduce",
+    )
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.add_init_script("""
+        let pending, clock = performance.now();
+        Object.defineProperty(performance, 'now', {value: () => clock});
+        window.requestAnimationFrame = callback => { pending = callback; };
+        window.watchStep = count => { for (let i = 0; i < count; i++) pending(clock += 1000); };
+    """)
+    page.goto(url)
+    expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 3D", timeout=20_000)
+    page.evaluate("watchStep(1)")
+    page.tap("#roomToggle")
+    page.tap("#cinema")
+    page.tap("#watchStart")
+    expect(page.locator("#bridge")).to_have_class("route-available cinematic watching")
+    expect(page.locator("#exitCinema")).to_have_text("자동 관측 종료")
+    expect(page.locator(".viewhud")).to_be_hidden()
+    expect(page.locator("#watchNext")).to_be_in_viewport()
+    page.evaluate("watchStep(44)")
+    expect(page.locator("#watchNext")).to_be_enabled()
+    page.evaluate("""
+        Object.defineProperty(document, 'hidden', {configurable: true, value: true});
+        document.dispatchEvent(new Event('visibilitychange'));
+        watchStep(50);
+        delete document.hidden;
+        document.dispatchEvent(new Event('visibilitychange'));
+        watchStep(1);
+    """)
+    expect(page.locator("#watchNext")).to_be_enabled()
+    page.evaluate("watchStep(1)")
+    expect(page.locator("#modeLabel")).to_have_text("WARP DRIVE", timeout=20_000)
+    page.evaluate("watchStep(4)")
+    expect(page.locator("#destinationName")).to_have_text("GAIA")
+    page.tap("#watchNext")
+    page.evaluate("watchStep(1)")
+    expect(page.locator("#modeLabel")).to_have_text("WARP DRIVE", timeout=20_000)
+    page.evaluate("watchStep(4)")
+    expect(page.locator("#destinationName")).to_have_text("HALO GATE")
+
+    blocked = []
+    page.route("**/nebula-front.webp", lambda route: blocked.append(route))
+    with page.expect_request("**/nebula-front.webp"):
+        page.tap("#watchNext")
+        page.evaluate("watchStep(1)")
+    expect(page.locator("#flightStatus")).to_have_text("항로 계산 중")
+    page.tap("#exitCinema")
+    blocked[0].continue_()
+    expect(page.locator("#flightStatus")).to_have_text("순항 항해 중", timeout=20_000)
+    expect(page.locator("#roomToggle")).to_have_text("함교 OFF")
+    expect(page.locator(".viewhud")).to_be_visible()
+    page.evaluate("watchStep(50)")
+    expect(page.locator("#destinationName")).to_have_text("HALO GATE")
+    assert not errors, errors
+    page.close()
+
+
 def test_fallbacks(browser, url):
     page, errors = boot(browser, url, "RENDER / CANVAS 360°", mobile=True, disable_gpu=True)
     expect(page.locator("#approach")).to_be_hidden()
@@ -624,6 +759,9 @@ def main():
                 test_navigation_map(browser, url)
                 test_navigation_map_mobile(browser, url)
                 print("PASS: 3D map, warp tracking, failed warp, visit persistence and mobile Canvas", flush=True)
+                test_bridge_audio(browser, url)
+                test_automatic_observation(browser, url)
+                print("PASS: layered audio and automatic observation", flush=True)
                 test_fallbacks(browser, url)
                 test_upload_failure(browser, url)
                 print("PASS: Texture OOM on surface, bridge and destination cubemap", flush=True)

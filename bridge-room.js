@@ -90,8 +90,11 @@ const AsteriaBridge = (() => {
     });
     box([-1.22,-1.78,-5.09],[1.22,1.45,-4.93], trim);
     box([-1.12,-1.78,-4.92],[1.12,1.36,-4.87], dark);
-    box([-.012,-1.7,-4.866],[.012,1.22,-4.858], cyan);
-    box([-.66,1.18,-4.866],[.66,1.23,-4.858], amber);
+    for (const side of [-1, 1]) {
+      const a = side * 1.12, b = side * 2.22;
+      box([Math.min(a,b),-1.78,-4.87],[Math.max(a,b),1.36,-4.74], panel);
+    }
+    box([-.66,1.39,-4.93],[.66,1.45,-4.86], amber);
 
     function console(x, z, width, depth) {
       box([x-width*.26,-1.78,z-depth*.34],[x+width*.26,-1.13,z+depth*.34], panel);
@@ -109,7 +112,16 @@ const AsteriaBridge = (() => {
       console(x,1.9,1.15,1.75);
       console(x,-1.45,1.15,1.75);
     }
-    return new Float32Array(data);
+    const frames = [data.length / 6];
+    for (const side of [-1, 1]) {
+      const inner = side * .025, outer = side * 1.09;
+      box([Math.min(inner,outer),-1.77,-4.865],[Math.max(inner,outer),1.34,-4.81], dark);
+      box([inner-.013,-1.7,-4.805],[inner+.013,1.22,-4.797], cyan);
+      const x = side * .57;
+      box([x-.33,.22,-4.806],[x+.33,.255,-4.798], trim);
+      frames.push(data.length / 6);
+    }
+    return {vertices: new Float32Array(data), frames};
   }
 
   const vertex = `
@@ -118,14 +130,16 @@ attribute vec3 tint;
 uniform vec3 eye;
 uniform mat3 basis;
 uniform vec2 scale;
+uniform float hatchOffset;
 varying vec3 color;
 varying vec3 point;
 void main() {
-  vec3 offset = position - eye;
+  vec3 world = position + vec3(hatchOffset, 0.0, 0.0);
+  vec3 offset = world - eye;
   vec3 view = vec3(dot(basis[0], offset), dot(basis[1], offset), dot(basis[2], offset));
   gl_Position = vec4(view.xy / scale, view.z * 1.00753 - .15056, view.z);
   color = tint;
-  point = position;
+  point = world;
 }`;
 
   const fragment = `
@@ -139,7 +153,7 @@ void main() {
 }`;
 
   function bind(gl, program, check) {
-    const vertices = mesh();
+    const {vertices, frames} = mesh();
     const buffer = gl.createBuffer();
     if (!buffer) throw Error('WebGL bridge mesh allocation failed');
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -153,9 +167,9 @@ void main() {
 
     const position = gl.getAttribLocation(program, 'position');
     const tint = gl.getAttribLocation(program, 'tint');
-    const [eye, basis, scale] = ['eye', 'basis', 'scale'].map(name => gl.getUniformLocation(program, name));
+    const [eye, basis, scale, hatchOffset] = ['eye', 'basis', 'scale', 'hatchOffset'].map(name => gl.getUniformLocation(program, name));
     return {
-      draw(matrix, camera, xScale, yScale) {
+      draw(matrix, camera, xScale, yScale, hatch) {
         gl.useProgram(program);
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
         gl.enableVertexAttribArray(position);
@@ -168,7 +182,13 @@ void main() {
         gl.enable(gl.DEPTH_TEST);
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 6);
+        const [left, right, end] = frames;
+        gl.uniform1f(hatchOffset, 0);
+        gl.drawArrays(gl.TRIANGLES, 0, left);
+        gl.uniform1f(hatchOffset, -1.09*hatch);
+        gl.drawArrays(gl.TRIANGLES, left, right - left);
+        gl.uniform1f(hatchOffset, 1.09*hatch);
+        gl.drawArrays(gl.TRIANGLES, right, end - right);
         gl.disable(gl.DEPTH_TEST);
         gl.disableVertexAttribArray(position);
         gl.disableVertexAttribArray(tint);

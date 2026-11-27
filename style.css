@@ -277,3 +277,29 @@
   .map-layout { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 9px; }
   #mapPlot { height: clamp(220px, 42dvh, 340px); }
 }
+
+.watching #roomView { filter: brightness(.56) saturate(.78); }
+#observationControls {
+  position: absolute;
+  z-index: 8;
+  bottom: 24px;
+  left: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: calc(100% - 165px);
+}
+#observationControls button {
+  min-height: 31px;
+  padding: 5px 8px;
+  border: 1px solid #355467;
+  border-radius: 3px;
+  background: #0c1d2bcc;
+  color: #bbd6df;
+  font-size: 11px;
+}
+#observationControls button[aria-pressed="true"] { color: var(--cyan); }
+@media (max-width: 500px) {
+  #observationControls { left: 10px; max-width: calc(100% - 130px); gap: 4px; }
+  #exitCinema { right: 10px; }
+}
