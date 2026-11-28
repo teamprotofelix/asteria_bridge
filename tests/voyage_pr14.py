@@ -2,19 +2,22 @@
 import io
 import json
 import os
+import re
 from pathlib import Path
 
-from browser_smoke import ROOT, QuietHandler, Thread, ThreadingHTTPServer, expect, partial, sync_playwright
+from browser_smoke import ROOT, QuietHandler, Thread, ThreadingHTTPServer, expect, partial, sync_playwright, wait_for
 from flight_pr12 import CLOCK, advance
 from command_pr13 import open_chat, send
 
 OUTPUT = Path(os.environ.get("VOYAGE_CAPTURE_DIR", "voyage-pr14-captures"))
 KEY = "asteria.voyage.v2"
 LEGACY = "asteria.visited-sectors.v1"
+SHELL_VERSION = re.search(r"const version='([^']+)';", (ROOT / "sw.js").read_text())[1]
+NEXT_SHELL_VERSION = SHELL_VERSION + "-test-update"
 
 
 class WorkerVersions(QuietHandler):
-    version = "14.2"
+    version = SHELL_VERSION
     disconnected = False
 
     def send_head(self):
@@ -22,7 +25,7 @@ class WorkerVersions(QuietHandler):
             self.send_error(503)
             return None
         if self.path.split("?")[0].endswith("/sw.js"):
-            source = (ROOT / "sw.js").read_text().replace("version='14.2'", "version='" + self.version + "'")
+            source = (ROOT / "sw.js").read_text().replace(f"const version='{SHELL_VERSION}';", f"const version='{self.version}';")
             raw = source.encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/javascript")
@@ -152,7 +155,7 @@ def memory_consent(browser,url):
     first.evaluate("([key,value])=>localStorage.setItem(key,JSON.stringify(value))",[KEY,legacy])
     first.reload()
     expect(first.locator("#marieOpen")).to_be_enabled(timeout=25000)
-    first.wait_for_function("(key)=>JSON.parse(localStorage.getItem(key)).mariePreferences===null",arg=KEY)
+    wait_for(first, "(key)=>JSON.parse(localStorage.getItem(key)).mariePreferences===null",arg=KEY)
     memory_settings(first)
     expect(first.locator("#commandMemory")).to_contain_text("미설정")
     first.locator("#commandRemember").check()
@@ -293,7 +296,7 @@ def offline(browser,url):
     errors=[]
     page.on("pageerror",lambda error:errors.append(str(error)))
     ready(page,url)
-    page.wait_for_function("navigator.serviceWorker.controller !== null",timeout=30000)
+    wait_for(page, "navigator.serviceWorker.controller !== null",timeout=30000)
     cdp=context.new_cdp_session(page)
     manifest=cdp.send("Page.getAppManifest")
     parsed=json.loads(manifest["data"])
@@ -301,9 +304,9 @@ def offline(browser,url):
     assert not manifest["errors"],manifest["errors"]
     assert page.evaluate("caches.keys().then(keys=>keys.every(name=>!name.includes(':pack:')))")
 
-    WorkerVersions.version="14.3"
+    WorkerVersions.version=NEXT_SHELL_VERSION
     page.evaluate("navigator.serviceWorker.getRegistration().then(reg=>reg.update())")
-    page.wait_for_function("navigator.serviceWorker.getRegistration().then(reg=>!!reg.waiting)",timeout=25000)
+    wait_for(page, "navigator.serviceWorker.getRegistration().then(reg=>!!reg.waiting)",timeout=25000)
     page.click("#warp")
     expect(page.locator("#modeLabel")).to_have_text("WARP DRIVE")
     open_voyage(page,"offline")
@@ -312,7 +315,7 @@ def offline(browser,url):
     with page.expect_navigation():
         page.click("#voyageApplyUpdate")
     expect(page.locator("#marieOpen")).to_be_enabled(timeout=22000)
-    page.wait_for_function("caches.keys().then(keys=>keys.some(name=>name.endsWith('shell:14.3')) && keys.every(name=>!name.endsWith('shell:14.2')))")
+    wait_for(page, "([current, previous]) => caches.keys().then(keys => keys.some(name => name.endsWith(current)) && keys.every(name => !name.endsWith(previous)))", arg=[":shell:"+NEXT_SHELL_VERSION, ":shell:"+SHELL_VERSION])
     open_voyage(page,"offline")
     page.select_option("#voyageOfflineSector","gaia")
     page.click("#voyageOfflineAdd")

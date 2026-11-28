@@ -3,6 +3,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
+from time import monotonic
 
 from playwright.sync_api import expect, sync_playwright
 
@@ -12,6 +13,17 @@ ROOT = Path(__file__).resolve().parents[1]
 class QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, *_):
         pass
+
+
+def wait_for(page, predicate, *, arg=None, timeout=30_000):
+    # Playwright wait_for_function uses eval inside the document, which the CSP
+    # blocks. CDP-backed page.evaluate can call the probe without changing CSP.
+    deadline = monotonic() + timeout / 1000
+    while monotonic() < deadline:
+        if page.evaluate(predicate, arg):
+            return
+        page.wait_for_timeout(50)
+    raise AssertionError(f"Condition still false after {timeout} ms: {predicate}")
 
 
 def boot(browser, url, mode, *, mobile=False, disable_gpu=False, reduced_motion="reduce"):
@@ -30,7 +42,7 @@ def boot(browser, url, mode, *, mobile=False, disable_gpu=False, reduced_motion=
         """)
     page.goto(url)
     expect(page.locator("#renderMode")).to_have_text(mode, timeout=20_000)
-    page.wait_for_function("document.querySelector('#skyView').width > 300")
+    wait_for(page, "document.querySelector('#skyView').width > 300")
     return page, errors
 
 
@@ -68,13 +80,13 @@ def test_desktop(browser, url):
     page.click("#roomToggle")
     expect(page.locator("#roomToggle")).to_have_text("함교 OFF")
     approach.fill("0")
-    page.wait_for_function("document.querySelector('#approachRead').value === '0%'")
+    wait_for(page, "document.querySelector('#approachRead').value === '0%'")
     page.wait_for_timeout(120)
     far = snapshot(page)
     approach.fill("86")
-    page.wait_for_function("(far) => document.querySelector('#skyView').toDataURL() !== far", arg=far)
+    wait_for(page, "(far) => document.querySelector('#skyView').toDataURL() !== far", arg=far)
     approach.fill("0")
-    page.wait_for_function("(far) => document.querySelector('#skyView').toDataURL() === far", arg=far)
+    wait_for(page, "(far) => document.querySelector('#skyView').toDataURL() === far", arg=far)
 
     # Reduced motion jumps directly to each endpoint and still redraws the scene.
     distance = page.locator("#surfaceDistance")
@@ -82,21 +94,21 @@ def test_desktop(browser, url):
     page.get_by_role("button", name="접근", exact=True).click()
     expect(approach).to_have_value("100")
     expect(distance).to_have_text("0.7 SU")
-    page.wait_for_function("(far) => document.querySelector('#skyView').toDataURL() !== far", arg=far)
+    wait_for(page, "(far) => document.querySelector('#skyView').toDataURL() !== far", arg=far)
     page.get_by_role("button", name="이탈", exact=True).click()
     expect(approach).to_have_value("0")
     expect(distance).to_have_text("11.9 SU")
-    page.wait_for_function("(far) => document.querySelector('#skyView').toDataURL() === far", arg=far)
+    wait_for(page, "(far) => document.querySelector('#skyView').toDataURL() === far", arg=far)
 
     page.locator("#view").focus()
     page.keyboard.down("d")
-    page.wait_for_function("parseFloat(document.querySelector('#heading').textContent) > 20")
+    wait_for(page, "parseFloat(document.querySelector('#heading').textContent) > 20")
     page.keyboard.up("d")
     page.keyboard.down("w")
-    page.wait_for_function("parseFloat(document.querySelector('#pitchRead').textContent) > 20")
+    wait_for(page, "parseFloat(document.querySelector('#pitchRead').textContent) > 20")
     page.keyboard.up("w")
     page.keyboard.down("e")
-    page.wait_for_function("parseFloat(document.querySelector('#rollRead').textContent) > 20")
+    wait_for(page, "parseFloat(document.querySelector('#rollRead').textContent) > 20")
     page.keyboard.up("e")
     page.keyboard.press("r")
     expect(page.locator("#heading")).to_have_text("000.0°")
@@ -137,7 +149,7 @@ def test_mobile(browser, url):
     page, errors = boot(browser, url, "RENDER / WEBGL 3D", mobile=True, reduced_motion="no-preference")
     page.locator('#roomToggle').tap()
     first_frame = snapshot(page)
-    page.wait_for_function("(previous) => document.querySelector('#skyView').toDataURL() !== previous", arg=first_frame)
+    wait_for(page, "(previous) => document.querySelector('#skyView').toDataURL() !== previous", arg=first_frame)
     expect(page.locator("#approach")).to_be_in_viewport()
     expect(page.locator("#travel")).to_be_in_viewport()
     expect(page.locator("#eventBtn")).to_be_in_viewport()
@@ -149,7 +161,7 @@ def test_mobile(browser, url):
     expect(far).to_be_in_viewport()
     near.tap()
     expect(near).to_have_text("정지")
-    page.wait_for_function("Number(document.querySelector('#approach').value) > 75")
+    wait_for(page, "Number(document.querySelector('#approach').value) > 75")
     near.tap()
     expect(near).to_have_text("접근")
     paused = page.locator("#approach").input_value()
@@ -188,7 +200,7 @@ def test_bridge_walk(browser, url):
     page, errors = boot(browser, url, "RENDER / WEBGL 3D")
     walk = page.locator("#walkToggle")
     expect(walk).to_be_enabled()
-    page.wait_for_function("document.querySelector('#roomView').width > 300")
+    wait_for(page, "document.querySelector('#roomView').width > 300")
     assert room_eye(page) == [0, 0, 0]
     room = page.locator("#roomView")
     assert room.evaluate("""canvas => {
@@ -218,7 +230,7 @@ def test_bridge_walk(browser, url):
     page.keyboard.up("Shift")
     assert -.651 <= room_eye(page)[1] < 0
     page.keyboard.down("e")
-    page.wait_for_function("parseFloat(document.querySelector('#rollRead').textContent) > 15")
+    wait_for(page, "parseFloat(document.querySelector('#rollRead').textContent) > 15")
     page.keyboard.up("e")
     page.keyboard.press("c")
     expect(walk).to_have_attribute("aria-pressed", "false")
@@ -226,7 +238,7 @@ def test_bridge_walk(browser, url):
     page.keyboard.press("Escape")
     expect(page.locator("#exitCinema")).to_be_hidden()
     page.keyboard.press("r")
-    page.wait_for_function("document.querySelector('#rollRead').textContent === '+0.0°'")
+    wait_for(page, "document.querySelector('#rollRead').textContent === '+0.0°'")
     assert room_eye(page) == [0, 0, 0]
 
     walk.click()
@@ -267,7 +279,7 @@ def test_bridge_mesh_fallback(browser, url):
     expect(page.locator("#walkToggle")).to_be_disabled()
     room_toggle = page.locator("#roomToggle")
     expect(room_toggle).to_have_text("함교 ON")
-    page.wait_for_function("document.querySelector('#roomView').width > 300")
+    wait_for(page, "document.querySelector('#roomView').width > 300")
     assert room_eye(page) is None
 
     alpha = page.locator("#roomView").evaluate("""canvas => {
@@ -448,11 +460,12 @@ def test_navigation_map(browser, url):
     expect(page.locator("#mapSummary")).to_have_text("1 / 32 방문")
     expect(page.locator("#mapTravel")).to_be_disabled()
     target = page.locator('[data-sector="halogate"]')
-    page.wait_for_function("document.querySelector('[data-sector=halogate]').style.left !== ''")
+    wait_for(page, "document.querySelector('[data-sector=halogate]').style.left !== ''")
     original = target.evaluate("(node) => node.style.left")
     page.locator("#mapPlot").focus()
     page.keyboard.press("ArrowRight")
-    page.wait_for_function(
+    wait_for(
+        page,
         "(left) => document.querySelector('[data-sector=halogate]').style.left !== left", arg=original
     )
     page.click("#mapReset")
@@ -474,7 +487,7 @@ def test_navigation_map(browser, url):
     expect(page.locator("#mapFlightProgress")).to_be_visible(timeout=20_000)
     expect(page.locator("#mapTravel")).to_be_disabled()
     expect(page.locator("#mapCurrent")).to_have_text("NEREID")
-    page.wait_for_function("document.querySelector('#mapFlightProgress').value > 0")
+    wait_for(page, "document.querySelector('#mapFlightProgress').value > 0")
     expect(page.locator("#mapCurrent")).to_have_text("HALO GATE", timeout=20_000)
     expect(target).to_have_attribute("aria-current", "location")
     expect(page.locator("#mapSummary")).to_have_text("2 / 32 방문")
@@ -551,13 +564,13 @@ def test_bridge_audio(browser, url):
     expect(page.locator("#sound")).to_have_attribute("aria-pressed", "true")
     assert page.evaluate("bridgeAudioTest.contexts") == 1
     assert page.evaluate("bridgeAudioTest.loops") == 1
-    page.wait_for_function("audioRms() > .002")
+    wait_for(page, "audioRms() > .002")
     page.locator("#speed").fill("95")
-    page.wait_for_function("bridgeAudioTest.oscillators[0].frequency.value > 58")
+    wait_for(page, "bridgeAudioTest.oscillators[0].frequency.value > 58")
     count = page.evaluate("bridgeAudioTest.oscillators.length")
     page.click("#walkToggle")
     page.keyboard.down("s")
-    page.wait_for_function("""() => {
+    wait_for(page, """() => {
         const gl = document.querySelector('#roomView').getContext('webgl');
         const program = gl.getParameter(gl.CURRENT_PROGRAM);
         const offset = gl.getUniformLocation(program, 'hatchOffset');
@@ -569,19 +582,19 @@ def test_bridge_audio(browser, url):
     page.click("#cinema")
     page.click("#watchStart")
     expect(page.locator("#watchSound")).to_have_attribute("aria-pressed", "true")
-    page.wait_for_function("bridgeAudioTest.gains[4].gain.value > .035")
+    wait_for(page, "bridgeAudioTest.gains[4].gain.value > .035")
     page.evaluate("""
         Object.defineProperty(document, 'hidden', {configurable: true, value: true});
         document.dispatchEvent(new Event('visibilitychange'));
     """)
-    page.wait_for_function("bridgeAudioTest.gains[0].gain.value < .012")
+    wait_for(page, "bridgeAudioTest.gains[0].gain.value < .012")
     page.evaluate("""
         delete document.hidden;
         document.dispatchEvent(new Event('visibilitychange'));
     """)
     page.click("#watchSound")
     expect(page.locator("#watchSound")).to_have_attribute("aria-pressed", "false")
-    page.wait_for_function("audioRms() < .002")
+    wait_for(page, "audioRms() < .002")
     assert not errors, errors
     page.close()
 
@@ -762,7 +775,7 @@ def test_fallbacks(browser, url):
     page.route("**/gas-4k.webp", lambda route: route.abort())
     page.route("**/nereid-surface.webp", lambda route: route.abort())
     page.goto(url)
-    page.wait_for_function("document.querySelector('#skyView').width > 300")
+    wait_for(page, "document.querySelector('#skyView').width > 300")
     expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 360°")
     expect(page.locator("#approach")).to_be_hidden()
     travel(page, 4, "GAIA", "RENDER / WEBGL 3D")
@@ -802,7 +815,7 @@ def test_upload_failure(browser, url):
             travel(page, 8, "NEBULA", "RENDER / CANVAS 360°")
         expect(page.locator("#renderMode")).to_have_text("RENDER / CANVAS 360°")
         expect(page.locator("#approach")).to_be_hidden()
-        page.wait_for_function("""() => {
+        wait_for(page, """() => {
             const sky = document.querySelector('#skyView');
             if (sky.width <= 300) return false;
             return sky.getContext('2d').getImageData(0, 0, sky.width, sky.height).data
