@@ -5,7 +5,7 @@
 ## 시작하기
 
 - ZIP을 압축 해제하고 `index.html`을 브라우저에서 여세요. 모든 상대경로 에셋을 같이 유지하세요. 브라우저의 로컬 파일 접근 정책에 따라 정적 HTTP 호스팅이 필요할 수 있습니다.
-- GitHub Pages: 저장소 루트에 `index.html`, `app.js`, `sky-assets.js`, `sectors.js`, `space.js`, `flight.js`, `bridge-layout.js`, `marie-rig.js`, `marie-motion.js`, `marie.js`, `bridge-room.js`, `events.js`, `navigation-map.js`, `bridge-audio.js`, `style.css`, `.nojekyll`, `assets/`를 업로드합니다. Settings → Pages → Deploy from a branch → main / (root) → Save.
+- GitHub Pages: 저장소 루트에 `index.html`, `app.js`, `sky-assets.js`, `sectors.js`, `space.js`, `flight.js`, `bridge-layout.js`, `marie-rig.js`, `marie-motion.js`, `marie.js`, `marie-command.js`, `marie-adapter.js`, `marie-console.js`, `bridge-room.js`, `events.js`, `navigation-map.js`, `bridge-audio.js`, `style.css`, `.nojekyll`, `assets/`를 업로드합니다. Settings → Pages → Deploy from a branch → main / (root) → Save.
 - 별도 빌드 과정 없음. 일반 정적 호스트 또는 로컬 `python -m http.server 8000`으로도 실행할 수 있습니다.
 
 ## 조작법
@@ -63,6 +63,12 @@
 **차 준비**를 요청하면 준비와 대접을 거쳐 **차 받기**가 활성화됩니다. 경보나 워프 중에는 작업을 보류합니다. 미확인 신호나 구조 신호가 들어오면 **드론 파견** 또는 **드론 귀환**을 선택할 수 있습니다. 조사 결과는 모의 데이터로 표시됩니다.
 
 동작 줄이기에서는 위치와 연속 동작을 고정하고 업무 상태와 포즈를 갱신합니다. Canvas에서도 보고·차·드론 기능을 사용할 수 있습니다. [모델과 검증 자료](qa/PR11_REPORT.md)
+
+### 마리와 대화
+
+**마리 → 마리와 대화**에서 “마리, 상태 보고”, “가이아로 항로 설정”, “차 한 잔”, “자동 관측 시작”처럼 입력할 수 있습니다. 항로 설정은 목적지를 지정합니다. 워프와 반복 자동 관측은 화면에서 별도로 승인합니다. “정지”는 대기 중인 요청과 후속 자동 이동을 중단합니다.
+
+기본 대화는 로컬에서 처리합니다. **기억과 외부 응답 설정**에서 선호 구역을 저장·내보내기·삭제하거나, 사용자 관리 HTTPS 프록시를 설정할 수 있습니다. 외부 응답은 입력과 전송 내용을 확인해 승인한 요청에만 사용합니다. [연결 계약 및 검증](qa/PR13_REPORT.md)
 
 ### 함교 음향과 자동 관측
 

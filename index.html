@@ -72,6 +72,7 @@
 <div id="observationControls" hidden>
   <button id="watchStart" type="button">자동 관측 시작</button>
   <button id="watchNext" type="button" hidden>다음 구역</button>
+  <button id="watchCommand" type="button" aria-haspopup="dialog">마리와 대화</button>
   <button id="watchSound" type="button" aria-pressed="false">음향 OFF</button>
 </div><div id="toast" role="status" aria-live="polite"></div>
 <dialog id="mapDialog" aria-labelledby="mapTitle">
@@ -128,12 +129,55 @@
   <p id="marieReport" role="status" aria-live="polite"></p>
   <p id="marieDronePhase" role="status"></p>
   <div class="marie-actions">
+    <button id="marieCommand" type="button" aria-haspopup="dialog">마리와 대화</button>
     <button id="marieStatus" type="button">상태 보고</button>
     <button id="marieTea" type="button">차 준비</button>
     <button id="marieFollow" type="button" aria-pressed="false">동행 켜기</button>
     <button id="marieDrone" type="button" hidden>드론 파견</button>
     <button id="marieDroneCancel" type="button" hidden>드론 귀환</button>
   </div>
+</dialog>
+<dialog id="commandDialog" aria-labelledby="commandTitle">
+  <header class="marie-header">
+    <h2 id="commandTitle">마리와 대화</h2>
+    <button id="commandClose" type="button">닫기</button>
+  </header>
+  <ol id="commandLog" role="log" aria-label="현재 세션 대화"></ol>
+  <form id="commandForm">
+    <label for="commandInput">명령 또는 질문</label>
+    <div class="command-row">
+      <input id="commandInput" type="text" maxlength="180" autocomplete="off" enterkeyhint="send"
+             placeholder="가이아로 항로 설정" autofocus>
+      <button type="submit">보내기</button>
+    </div>
+  </form>
+  <section id="commandApproval" aria-label="요청 승인" hidden>
+    <p id="commandApprovalText" role="status"></p>
+    <pre id="commandPreview" hidden></pre>
+    <div class="command-row">
+      <button id="commandApprove" type="button">실행 승인</button>
+      <button id="commandReject" type="button">취소</button>
+    </div>
+  </section>
+  <p id="commandFeedback" role="status"></p>
+  <button id="commandAbortRequest" type="button" hidden>외부 요청 취소</button>
+  <details id="commandSettings">
+    <summary>기억과 외부 응답 설정</summary>
+    <label class="command-consent"><input id="commandRemember" type="checkbox"> 선호 구역을 이 브라우저에 저장</label>
+    <p id="commandMemory"></p>
+    <div class="command-row">
+      <button id="commandExport" type="button">선호 내보내기</button>
+      <button id="commandClear" type="button">선호 삭제</button>
+    </div>
+    <pre id="commandExportData" hidden></pre>
+    <label for="commandEndpoint">사용자 관리 HTTPS 프록시 주소</label>
+    <input id="commandEndpoint" type="url" autocomplete="off" maxlength="300" placeholder="https://…">
+    <div class="command-row">
+      <button id="commandConnect" type="button">이 세션에 연결</button>
+      <button id="commandDisconnect" type="button">연결 해제</button>
+    </div>
+    <p id="commandConnection" role="status">외부 응답 OFF · 로컬 모드</p>
+  </details>
 </dialog>
 <dialog id="qualityDialog" aria-labelledby="qualityTitle">
   <h2 id="qualityTitle">그래픽 품질</h2>
@@ -157,4 +201,4 @@
   <p id="startupStatus" role="status">관측창 에셋을 불러오는 중입니다.</p>
   <button id="retryStartup" type="button" class="primary" hidden>다시 시도</button>
 </div>
-</main><script src="sectors.js" defer></script><script src="space.js" defer></script><script src="flight.js" defer></script><script src="bridge-layout.js" defer></script><script src="marie-rig.js" defer></script><script src="marie-motion.js" defer></script><script src="marie.js" defer></script><script src="bridge-room.js" defer></script><script src="events.js" defer></script><script src="navigation-map.js" defer></script><script src="bridge-audio.js" defer></script><script src="sky-assets.js" defer></script><script src="app.js" defer></script></body></html>
+</main><script src="sectors.js" defer></script><script src="space.js" defer></script><script src="flight.js" defer></script><script src="bridge-layout.js" defer></script><script src="marie-rig.js" defer></script><script src="marie-motion.js" defer></script><script src="marie.js" defer></script><script src="marie-command.js" defer></script><script src="marie-adapter.js" defer></script><script src="marie-console.js" defer></script><script src="bridge-room.js" defer></script><script src="events.js" defer></script><script src="navigation-map.js" defer></script><script src="bridge-audio.js" defer></script><script src="sky-assets.js" defer></script><script src="app.js" defer></script></body></html>

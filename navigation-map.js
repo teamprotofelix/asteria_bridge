@@ -269,6 +269,7 @@ const AsteriaNavigationMap = (() => {
     });
 
     return {
+      visits:()=>Array.from(visited),
       flightStatus(phase, target, ring, position) {
         const available=!!position || ['PLAN','ALIGN','LOAD','WARP'].includes(phase);
         localFlight.hidden=!available;
