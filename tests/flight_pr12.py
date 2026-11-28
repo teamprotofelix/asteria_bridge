@@ -1,5 +1,6 @@
 """Free flight and the 21-event catalog through a real static HTTP origin."""
 import os
+from base64 import b64decode
 from pathlib import Path
 
 from browser_smoke import ROOT, QuietHandler, Thread, ThreadingHTTPServer, expect, partial, sync_playwright
@@ -27,6 +28,16 @@ window.skyUniform = name => {
 
 def advance(page, frames=1, milliseconds=100):
     page.evaluate("([frames,ms]) => flightFrames(frames,ms)", [frames, milliseconds])
+
+
+def capture(page, name):
+    # The test owns requestAnimationFrame; capture the already composed viewport directly.
+    session=page.context.new_cdp_session(page)
+    try:
+        still=session.send("Page.captureScreenshot",{"format":"png","fromSurface":False})
+        (OUTPUT/name).write_bytes(b64decode(still["data"]))
+    finally:
+        session.detach()
 
 
 def hold(page, key, frames=13):
@@ -67,7 +78,7 @@ def pilot(browser, url):
     hold(page, "i")
     moved = eye(page)
     assert moved[2] > start[2] + .5
-    page.screenshot(path=OUTPUT / "pilot-desktop.png")
+    capture(page,"pilot-desktop.png")
 
     page.click("#flightCamera")
     advance(page)
@@ -101,7 +112,7 @@ def pilot(browser, url):
     page.click("#mapOpen")
     advance(page)
     expect(page.locator("#mapLocalFlight")).to_contain_text("NEREID")
-    page.screenshot(path=OUTPUT / "pilot-map.png")
+    capture(page,"pilot-map.png")
     page.click("#mapClose")
     hold(page,"i",100)
     expect(page.locator("#flightAssist")).to_have_value("IDLE")
@@ -198,7 +209,7 @@ def events(browser,url):
         page.click("#eventBtn")
         expect(page.locator("#eventName")).to_have_text(title)
         advance(page)
-        page.screenshot(path=OUTPUT / (value+".png"))
+        capture(page,value+".png")
         page.click("#eventAction")
         expect(page.locator("#eventAction")).to_be_hidden()
         page.click("#eventDismiss")
@@ -223,7 +234,7 @@ def mobile(browser,url):
     advance(page,8)
     touch.send("Input.dispatchTouchEvent",{"type":"touchEnd","touchPoints":[]})
     assert eye(page)[2]>initial[2]+.2
-    page.screenshot(path=OUTPUT / "pilot-mobile.png")
+    capture(page,"pilot-mobile.png")
     # The synthesized swipe can suppress the next immediate mobile click.
     touch.detach()
     page.wait_for_timeout(650)
