@@ -78,7 +78,7 @@ def movement(page, key, frames):
 
 
 def verify_actions(browser, url):
-    page = browser.new_page(viewport={"width": 960, "height": 650})
+    page = browser.new_page(service_workers="block", viewport={"width": 960, "height": 650})
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.add_init_script(CLOCK)
@@ -165,7 +165,7 @@ def verify_actions(browser, url):
 
 
 def capture_closeup(browser, url):
-    page = browser.new_page(viewport={"width": 960, "height": 650}, reduced_motion="reduce")
+    page = browser.new_page(service_workers="block", viewport={"width": 960, "height": 650}, reduced_motion="reduce")
     page.add_init_script(CLOCK)
     page.goto(url)
     expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 3D", timeout=25_000)
@@ -184,7 +184,7 @@ def capture_closeup(browser, url):
 
 
 def frame_measurement(browser, url):
-    page = browser.new_page(viewport={"width": 960, "height": 650})
+    page = browser.new_page(service_workers="block", viewport={"width": 960, "height": 650})
     page.goto(url)
     expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 3D", timeout=25_000)
     data = page.evaluate("""async () => {

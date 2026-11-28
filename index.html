@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#07111e"><title>ASTERIA II — Horizon Bridge v2</title><meta name="description" content="360° immersive starship bridge simulation"><link rel="icon" href="assets/mark.svg"><link rel="stylesheet" href="style.css"></head><body>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#07111e"><title>ASTERIA II — Horizon Bridge v2</title><meta name="description" content="360° immersive starship bridge simulation"><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="assets/icons/bridge-192.png"><link rel="icon" href="assets/mark.svg"><link rel="stylesheet" href="style.css"></head><body>
 <main id="bridge" aria-label="아스테리아 II 우주선 함교">
 <div id="view" aria-label="360도 관측창. WASD 또는 드래그로 시야 조작" tabindex="0"><canvas id="skyView" class="panorama" aria-hidden="true"></canvas><canvas id="effects" aria-hidden="true"></canvas><canvas id="roomView" class="panorama" aria-hidden="true"></canvas><div class="glass" aria-hidden="true"></div><div id="warpGlow"></div></div>
 <header class="topbar"><div class="brand"><img src="assets/mark.svg" alt=""><div><strong>ASTERIA <span>II</span></strong><small>HORIZON BRIDGE / NX-02 · V2.0</small></div></div><div class="topcenter"><span class="live-dot"></span><span id="flightStatus">순항 항해 중</span><i></i><span id="clock">--:--:-- UTC</span></div><div class="topactions"><button id="mapOpen" type="button" aria-haspopup="dialog" aria-label="항해 지도" title="항해 지도" disabled>◈ <span>항해 지도</span></button><button id="sound" aria-pressed="false" title="함교 음향" aria-label="함교 음향">♪ <span>음향 OFF</span></button><button id="fullscreen" title="전체 화면">⛶ <span>전체 화면</span></button><button id="help" title="조작법">? <span>조작법</span></button></div></header>
@@ -29,7 +29,7 @@
     <button id="tourBtn" type="button" disabled>관측 순회</button>
     <span id="tourPhase" role="status" aria-live="polite"></span>
   </div>
-</div><div class="panelbottom"><span>FLIGHT PLAN <b id="routeCode">OR-07</b></span><button id="qualityOpen" type="button" aria-haspopup="dialog" disabled>그래픽 품질</button></div></div>
+</div><div class="panelbottom"><span>FLIGHT PLAN <b id="routeCode">OR-07</b></span><button id="voyageOpen" type="button" aria-haspopup="dialog">항해 일지</button><button id="qualityOpen" type="button" aria-haspopup="dialog" disabled>그래픽 품질</button></div></div>
 <div class="panel mainpanel"><div class="panelhead"><span><i></i> FLIGHT CONTROL</span><span id="modeLabel">SUBLIGHT DRIVE</span></div><div class="mainread"><div><small>순항 속도 / SIMULATED</small><div class="speed"><strong id="speedRead">0.24</strong><span>c</span></div></div><button class="warp" id="warp" disabled><span class="warpicon">✦</span><div><b>워프 항해</b><small>ENGAGE WARP</small></div></button></div><div class="throttle"><label for="speed">THROTTLE <b id="throttlePct">35%</b></label><input id="speed" type="range" min="0" max="100" value="35"><div class="scale"><span>정지</span><span>순항</span><span>최대</span></div></div><div class="controls"><button id="autopilot" aria-pressed="false">◇ 자동 시야</button><button id="reset">↺ 정면 복귀</button><button id="cinema" aria-pressed="false">▣ 관측 모드</button><button id="walkToggle" aria-pressed="false" disabled>함교 이동</button><button id="flightToggle" type="button" aria-pressed="false" disabled>자유 조종</button></div><p id="flightCapability" hidden>자유 조종은 실시간 3D 구역에서 사용할 수 있습니다.</p></div>
 <div class="panel systempanel"><div class="panelhead"><span><i></i> SHIP SYSTEMS</span><span>03 / 艦況</span></div><div class="systembody"><div class="radar"><canvas id="radar" width="160" height="160"></canvas><span>LOCAL SCAN</span></div><div class="sysread"><div><span>동력 코어</span><b id="power">35%</b><i><em id="powerBar"></em></i></div><div><span>보호막</span><b id="shield">100%</b><i><em id="shieldBar" style="width:100%"></em></i></div><div><span>선체 안정성</span><b>100%</b><i><em style="width:100%"></em></i></div></div></div><div class="panelbottom"><span>ENVIRONMENT <b id="environment">STABLE</b></span><button id="marieOpen" type="button" aria-haspopup="dialog" disabled>마리</button></div><p id="marieBrief" aria-label="마리의 활동">계기판 점검</p></div>
 </section>
@@ -72,9 +72,83 @@
 <div id="observationControls" hidden>
   <button id="watchStart" type="button">자동 관측 시작</button>
   <button id="watchNext" type="button" hidden>다음 구역</button>
+  <button id="watchPause" type="button" hidden>일시정지</button>
+  <button id="watchEditor" type="button" aria-haspopup="dialog">맞춤 항로</button>
   <button id="watchCommand" type="button" aria-haspopup="dialog">마리와 대화</button>
   <button id="watchSound" type="button" aria-pressed="false">음향 OFF</button>
+  <span id="watchStatus"></span>
 </div><div id="toast" role="status" aria-live="polite"></div>
+<dialog id="voyageDialog" aria-labelledby="voyageTitle">
+  <header class="marie-header">
+    <h2 id="voyageTitle">항해 일지</h2>
+    <button id="voyageClose" type="button" autofocus>닫기</button>
+  </header>
+  <p id="voyageFeedback" role="status"></p>
+  <details data-voyage="log">
+    <summary>일지와 구역 도감</summary>
+    <div class="voyage-row">
+      <input id="voyageSearch" type="search" aria-label="일지 검색" placeholder="구역·기록 검색" maxlength="80">
+      <select id="voyageFilter" aria-label="일지 종류"><option value="">모든 기록</option></select>
+      <select id="voyageOrder" aria-label="일지 정렬"><option value="latest">최신순</option><option value="oldest">오래된순</option></select>
+    </div>
+    <p id="voyageLogEmpty">조건에 맞는 기록이 없습니다.</p>
+    <ol id="voyageLog" aria-label="항해 기록"></ol>
+    <label for="voyageCatalog">구역 도감</label>
+    <select id="voyageCatalog"></select>
+    <p id="voyageCatalogInfo"></p>
+  </details>
+  <details data-voyage="storage">
+    <summary>저장·백업</summary>
+    <label><input id="voyageConsent" type="checkbox"> 이 브라우저에 항해 기록 저장</label>
+    <p id="voyageStorageStatus" role="status"></p>
+    <div class="voyage-row">
+      <button id="voyageLegacy" type="button" hidden>기존 방문 기록 가져오기</button>
+      <button id="voyageExport" type="button">JSON 백업</button>
+      <button id="voyageRestore" type="button">안전 구역 열기</button>
+    </div>
+    <label for="voyageFile">백업 미리보기</label>
+    <input id="voyageFile" type="file" accept=".json,application/json">
+    <p id="voyagePreview" role="status"></p>
+    <div class="voyage-row">
+      <select id="voyageMerge" aria-label="백업 반영 방식"><option value="merge">기존 데이터와 병합</option><option value="replace">기존 데이터를 대체</option></select>
+      <button id="voyageApply" type="button" disabled>미리보기 반영</button>
+    </div>
+    <button id="voyageConfirmErase" type="button" aria-expanded="false" aria-controls="voyageErase">항해 기록 초기화</button>
+    <div id="voyageErase" hidden>
+      <p>이 브라우저의 새 항해 기록과 저장 동의를 삭제합니다. 이전 버전 기록은 보관됩니다.</p>
+      <button id="voyageForget" type="button">삭제 확정</button>
+    </div>
+  </details>
+  <details data-voyage="route">
+    <summary>맞춤 자동 관측</summary>
+    <p>구역 순서와 체류 시간을 확인한 뒤 시작하십시오. 현재 워프는 종료를 선택해도 도착까지 진행합니다.</p>
+    <datalist id="voyageDwell">
+      <option value="45">45초</option><option value="60">1분</option><option value="180">3분</option>
+      <option value="300">5분</option><option value="600">10분</option><option value="1800">30분</option>
+    </datalist>
+    <ol id="voyageStops" aria-label="관측 순서"></ol>
+    <button id="voyageAdd" type="button">구역 추가</button>
+    <div class="voyage-row">
+      <label>반복 (0은 무한) <input id="voyageRepeat" type="number" min="0" max="99" step="1"></label>
+      <label>시점 <select id="voyageView"><option value="bridge">함교</option><option value="captain">함장석</option>
+        <option value="lounge">라운지</option><option value="exterior">외부 시야</option></select></label>
+      <label>음향 <select id="voyageAudio"><option value="mute">무음</option><option value="inherit">기존 설정</option></select></label>
+    </div>
+    <button id="voyageStart" type="button">이 항로로 관측 시작</button>
+  </details>
+  <details data-voyage="offline">
+    <summary>오프라인·설치</summary>
+    <label for="voyageOfflineSector">추가 오프라인 구역</label>
+    <select id="voyageOfflineSector"></select>
+    <div class="voyage-row">
+      <button id="voyageOfflineAdd" type="button">구역 다운로드</button>
+      <button id="voyageOfflineRemove" type="button">다운로드 삭제</button>
+      <button id="voyageInstall" type="button" hidden>함교 설치</button>
+      <button id="voyageApplyUpdate" type="button" hidden>업데이트 적용</button>
+    </div>
+    <p id="voyageOfflineList" role="status">기본 관측 에셋 준비 중</p>
+  </details>
+</dialog>
 <dialog id="mapDialog" aria-labelledby="mapTitle">
   <header class="map-header">
     <h2 id="mapTitle">홀로그램 항해 지도</h2>
@@ -201,4 +275,4 @@
   <p id="startupStatus" role="status">관측창 에셋을 불러오는 중입니다.</p>
   <button id="retryStartup" type="button" class="primary" hidden>다시 시도</button>
 </div>
-</main><script src="sectors.js" defer></script><script src="space.js" defer></script><script src="flight.js" defer></script><script src="bridge-layout.js" defer></script><script src="marie-rig.js" defer></script><script src="marie-motion.js" defer></script><script src="marie.js" defer></script><script src="marie-command.js" defer></script><script src="marie-adapter.js" defer></script><script src="marie-console.js" defer></script><script src="bridge-room.js" defer></script><script src="events.js" defer></script><script src="navigation-map.js" defer></script><script src="bridge-audio.js" defer></script><script src="sky-assets.js" defer></script><script src="app.js" defer></script></body></html>
+</main><script src="sectors.js" defer></script><script src="space.js" defer></script><script src="flight.js" defer></script><script src="bridge-layout.js" defer></script><script src="marie-rig.js" defer></script><script src="marie-motion.js" defer></script><script src="marie.js" defer></script><script src="marie-command.js" defer></script><script src="marie-adapter.js" defer></script><script src="marie-console.js" defer></script><script src="bridge-room.js" defer></script><script src="events.js" defer></script><script src="navigation-map.js" defer></script><script src="bridge-audio.js" defer></script><script src="sky-assets.js" defer></script><script src="voyage-store.js" defer></script><script src="watch-plan.js" defer></script><script src="voyage-panel.js" defer></script><script src="app.js" defer></script></body></html>

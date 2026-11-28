@@ -11,7 +11,7 @@ KEY = "asteria.marie.preferences.v1"
 
 
 def begin(browser, url, mobile=False):
-    page = browser.new_page(
+    page = browser.new_page(service_workers="block",
         viewport={"width": 390, "height": 844} if mobile else {"width": 960, "height": 710},
         is_mobile=mobile, has_touch=mobile, reduced_motion="reduce",
     )

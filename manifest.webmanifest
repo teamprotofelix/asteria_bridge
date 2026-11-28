@@ -1,0 +1,15 @@
+{
+  "id": "./",
+  "name": "Asteria II · 우주선 함교",
+  "short_name": "Asteria II",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#091724",
+  "theme_color": "#07111e",
+  "icons": [
+    {"src":"assets/icons/bridge-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"assets/icons/bridge-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}

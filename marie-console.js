@@ -4,7 +4,7 @@ const AsteriaMarieConsole = (() => {
   const help = '함장님, 상태 보고·관측지 추천·가이아로 항로 설정·헤일로 게이트로 워프·차 준비·드론 파견·자동 관측 시작·정지를 요청할 수 있습니다.';
   const fallback = '명령을 확인할 수 없습니다. 도움말이나 구역 이름을 입력해 주십시오.';
 
-  function create(sectors,{snapshot,execute}) {
+  function create(sectors,{snapshot,execute,onPreference=()=>{},initialPreference=null}) {
     const el=id=>document.getElementById(id);
     const dialog=el('commandDialog');
     const input=el('commandInput');
@@ -15,6 +15,7 @@ const AsteriaMarieConsole = (() => {
       setItem:(key,value)=>localStorage.setItem(key,value),
       removeItem:key=>localStorage.removeItem(key),
     });
+    if (initialPreference) pref.absorb(initialPreference);
     let nextId=0, pending=null, request=null, adapter=null, adapterAddress=null, opener=null;
     let previous='', previousAt=-Infinity;
 
@@ -102,6 +103,7 @@ const AsteriaMarieConsole = (() => {
         entry('marie',localReply(command.intent));
       } else if (command.intent==='remember_sector') {
         const saved=pref.set(command.sectorId);
+        onPreference(command.sectorId);
         showMemory();
         entry('marie',!saved ? '브라우저 저장이 실패했습니다. 이번 세션에만 적용됩니다.'
           : pref.consent ? '선호 구역을 이 브라우저에 저장했습니다.' : '선호 구역을 이번 세션에 기억합니다.');
@@ -243,7 +245,7 @@ const AsteriaMarieConsole = (() => {
     };
     el('commandClear').onclick=()=>{
       if (!pref.clear()) status.textContent='저장된 선호를 삭제할 수 없습니다.';
-      else status.textContent='선호 구역과 저장 동의를 삭제했습니다.';
+      else {status.textContent='선호 구역과 저장 동의를 삭제했습니다.';onPreference(null);}
       el('commandExportData').hidden=true;
       showMemory();
     };
@@ -261,6 +263,7 @@ const AsteriaMarieConsole = (() => {
     showMemory();
 
     return {
+      restorePreference(sectorId) {pref.absorb(sectorId);showMemory();},
       open(trigger) {
         opener=trigger;
         dialog.showModal();

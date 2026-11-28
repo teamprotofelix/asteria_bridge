@@ -37,7 +37,7 @@ def hold(page, key, frames=13):
 
 
 def boot(browser, url, *, mobile=False):
-    page = browser.new_page(viewport={"width": 390, "height": 844} if mobile else {"width": 960, "height": 650},
+    page = browser.new_page(service_workers="block", viewport={"width": 390, "height": 844} if mobile else {"width": 960, "height": 650},
                             is_mobile=mobile, has_touch=mobile, reduced_motion="reduce")
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
@@ -164,7 +164,9 @@ def voyage(browser,url):
     expect(page.locator("#destinationName")).to_have_text("GAIA")
     expect(page.locator("#flightReadout")).to_contain_text("GAIA")
     expect(page.locator("#flightAssist")).to_have_value("APPROACH")
-    assert "gaia" in page.evaluate("JSON.parse(localStorage.getItem('asteria.visited-sectors.v1'))")
+    page.click("#mapOpen")
+    advance(page)
+    expect(page.locator('#mapNodes [data-sector="gaia"]')).to_have_attribute("aria-current","location")
     assert not errors, errors
     page.close()
 

@@ -16,7 +16,7 @@ def main():
         with sync_playwright() as p:
             browser=p.chromium.launch(executable_path=os.environ.get('CHROMIUM_BIN'),
                 args=['--enable-unsafe-swiftshader','--use-angle=swiftshader'])
-            page=browser.new_page(viewport={'width':1920,'height':900},reduced_motion='reduce')
+            page=browser.new_page(service_workers="block", viewport={'width':1920,'height':900},reduced_motion='reduce')
             page.add_init_script("Object.defineProperty(navigator,'deviceMemory',{value:8});")
             errors=[]
             page.on('pageerror',lambda e: errors.append(str(e)))

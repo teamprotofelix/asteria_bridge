@@ -135,6 +135,7 @@ const AsteriaCommand = (() => {
         consent=false;
         return true;
       },
+      absorb(sectorId) {saved=sectors.some(([id])=>id===sectorId) ? sectorId : null;},
       export() {return {version:1,consent,sectorId:saved};},
     };
   }

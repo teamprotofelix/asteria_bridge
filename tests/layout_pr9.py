@@ -11,7 +11,7 @@ with ThreadingHTTPServer(('127.0.0.1',0),partial(Quiet,directory=ROOT)) as serve
     Thread(target=server.serve_forever,daemon=True).start()
     with sync_playwright() as p:
         browser=p.chromium.launch(executable_path=os.environ.get('CHROMIUM_BIN'),args=['--enable-unsafe-swiftshader','--use-angle=swiftshader'])
-        page=browser.new_page(reduced_motion='reduce')
+        page=browser.new_page(service_workers="block", reduced_motion='reduce')
         page.goto(f'http://127.0.0.1:{server.server_port}/')
         expect(page.locator('#renderMode')).to_have_text('RENDER / WEBGL 3D',timeout=25000)
         for width,height in [(320,568),(390,844),(768,1024),(844,390),(1440,900),(1920,1080),(2560,1440)]:

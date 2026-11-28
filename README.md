@@ -5,7 +5,7 @@
 ## 시작하기
 
 - ZIP을 압축 해제하고 `index.html`을 브라우저에서 여세요. 모든 상대경로 에셋을 같이 유지하세요. 브라우저의 로컬 파일 접근 정책에 따라 정적 HTTP 호스팅이 필요할 수 있습니다.
-- GitHub Pages: 저장소 루트에 `index.html`, `app.js`, `sky-assets.js`, `sectors.js`, `space.js`, `flight.js`, `bridge-layout.js`, `marie-rig.js`, `marie-motion.js`, `marie.js`, `marie-command.js`, `marie-adapter.js`, `marie-console.js`, `bridge-room.js`, `events.js`, `navigation-map.js`, `bridge-audio.js`, `style.css`, `.nojekyll`, `assets/`를 업로드합니다. Settings → Pages → Deploy from a branch → main / (root) → Save.
+- GitHub Pages: 저장소 루트에 `index.html`, `app.js`, `sky-assets.js`, `sectors.js`, `space.js`, `flight.js`, `bridge-layout.js`, `marie-rig.js`, `marie-motion.js`, `marie.js`, `marie-command.js`, `marie-adapter.js`, `marie-console.js`, `bridge-room.js`, `events.js`, `navigation-map.js`, `bridge-audio.js`, `style.css`, `voyage-store.js`, `voyage-panel.js`, `watch-plan.js`, `manifest.webmanifest`, `sw.js`, `.nojekyll`, `assets/`를 업로드합니다. Settings → Pages → Deploy from a branch → main / (root) → Save.
 - 별도 빌드 과정 없음. 일반 정적 호스트 또는 로컬 `python -m http.server 8000`으로도 실행할 수 있습니다.
 
 ## 조작법
@@ -76,11 +76,19 @@
 
 **관측 모드 → 자동 관측 시작**을 누르면 현재 구역에서 45초 관측한 뒤 지정된 8개 구역을 반복 순회합니다. **다음 구역**으로 대기를 건너뛰고 **자동 관측 종료** 또는 Esc로 함교 조작으로 복귀할 수 있습니다. 음향을 켠 경우 자동 관측 중 낮은 음량의 앰비언트가 재생됩니다. 탭을 숨기면 소리와 다음 구역으로 이동하기 위한 대기를 잠시 멈춥니다.
 
+### 항해 일지·맞춤 자동 관측·오프라인
+
+항해 패널의 **항해 일지**에서 구역 도감, 세션 기록, 백업과 오프라인 구성을 엽니다. 새 항해 기록은 기본적으로 이 페이지에만 유지됩니다. **저장·백업**에서 저장을 켜면 마지막 안전 구역을 복원하고, 기존 방문은 별도 가져오기로 합칩니다. 현재 워프나 자동 실행은 새로고침 후 재개하지 않습니다.
+
+**관측 모드 → 맞춤 항로**에서 구역 순서, 관측 시간, 반복 횟수, 시점과 음향을 설정한 뒤 승인합니다. 기존 8개 구역 45초 자동 관측도 함께 제공합니다.
+
+HTTPS 또는 로컬 HTTP 지원 환경에서는 NEREID 기본 구역을 오프라인에서 열 수 있습니다. 온라인일 때 **오프라인·설치**에서 다른 구역을 내려받으십시오. 저장 및 캐시 정책은 [PR14 검증 보고서](qa/PR14_REPORT.md)에 설명합니다.
+
 ### 홀로그램 항해 지도
 
 상단의 **항해 지도**에서 32개 구역을 조회합니다. 드래그 또는 지도에 포커스를 둔 상태에서 방향키로 회전하고, **+ / −** 버튼으로 확대·축소합니다. 구역 필터는 현재 위치와 선택한 목적지를 계속 표시합니다.
 
-구역 점을 선택하면 기존 목적지 메뉴에도 반영되며, 점선으로 예정 항로를 표시합니다. 워프 중에는 도착 방향으로 움직이는 함선 표시와 진행률을 보여줍니다. 항해를 마치면 그 구역을 방문으로 등록하고 브라우저에 저장합니다. 지도 좌표는 시뮬레이션의 탐사 구역 배치입니다.
+구역 점을 선택하면 기존 목적지 메뉴에도 반영되며, 점선으로 예정 항로를 표시합니다. 워프 중에는 도착 방향으로 움직이는 함선 표시와 진행률을 보여줍니다. 항해를 마치면 그 구역을 방문으로 등록합니다. 브라우저 저장은 항해 일지에서 선택합니다. 지도 좌표는 시뮬레이션의 탐사 구역 배치입니다.
 
 ### 동적 우주 상황 (21종)
 

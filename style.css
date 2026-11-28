@@ -511,3 +511,38 @@
   max-height: 115px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
   color: #b8dedf; background: #091522; font: 11px var(--mono);
 }
+
+#voyageDialog {
+  width: min(620px,calc(100vw - 16px)); max-width: none;
+  max-height: calc(100dvh - 16px); padding: 10px; overscroll-behavior: contain;
+}
+#voyageDialog details { margin-top: 7px; padding: 6px 8px; border: 1px solid #3f6376; border-radius: 5px; }
+#voyageDialog summary { cursor: pointer; font-size: 14px; padding: 5px 0; }
+#voyageDialog p { margin: 5px 0; }
+#voyageDialog p:empty { display: none; }
+#voyageDialog button, #voyageDialog select, #voyageDialog input:not([type=checkbox]) {
+  width: auto; min-width: 0; max-width: 100%; min-height: 44px; margin: 2px 0;
+  font-size: 13px; color: #e0f5f8; background: #142e3f;
+  border: 1px solid #547588; border-radius: 4px; padding: 4px 7px;
+}
+#voyageDialog button:disabled { color: #98aeb8; }
+#voyageDialog label { display: inline-block; margin: 3px 4px 3px 0; }
+.voyage-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+#voyageLog, #voyageStops { margin: 5px 0; padding-inline-start: 22px; }
+#voyageLog { max-height: 29dvh; overflow: auto; }
+#voyageLog li { font-size: 13px; margin: 4px 0; }
+#voyageLog small { display: block; color: #9fb9c9; }
+#voyageStops li { margin: 4px 0; }
+#voyageStops input, #voyageRepeat { width: 67px !important; }
+#voyageStops li > * { margin-inline-end: 4px; }
+#watchStatus { color: #c7eaf0; font-size: 11px; }
+#watchStatus:empty { display: none; }
+#voyageOpen { border: 1px solid #45677a; background: #102737; border-radius: 3px; color: #d3e8ef; font-size: 10px; padding: 3px 5px; }
+@media(max-width: 760px) {
+  #voyageDialog button, #voyageDialog input:not([type=checkbox]), #voyageDialog select { font-size: 12px; }
+  #voyageStops { padding-inline-start: 17px; }
+}
+@media(max-width: 760px) {
+  .navpanel .panelbottom { flex-wrap: wrap; white-space: normal; }
+  #voyageOpen { min-height: 30px; }
+}
