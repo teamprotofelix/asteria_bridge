@@ -398,7 +398,7 @@ def test_dynamic_events(browser, url):
     page, errors = boot(browser, url, "RENDER / WEBGL 3D")
     event_select = page.locator("#eventSelect")
     banner = page.locator("#eventBanner")
-    expect(event_select.locator("option")).to_have_count(14)
+    expect(event_select.locator("option")).to_have_count(21)
     expect(event_select.locator('option[value="portal"]')).to_be_disabled()
     expect(event_select.locator('option[value="ring"]')).to_be_disabled()
 

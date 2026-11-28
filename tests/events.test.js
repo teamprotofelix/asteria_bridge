@@ -13,12 +13,15 @@ for (const file of ['sectors.js', 'space.js', 'events.js']) {
 }
 const {AsteriaEvents, AsteriaSpace} = vm.runInContext('({AsteriaEvents, AsteriaSpace})', context);
 
-test('the event catalog has 14 distinct events with regional eligibility', () => {
-  assert.equal(Object.keys(AsteriaEvents.catalog).length, 14);
+test('the event catalog has 21 distinct events with regional eligibility', () => {
+  assert.equal(Object.keys(AsteriaEvents.catalog).length, 21);
   const special = {
     flare: {star: true}, sunrise: {world: true}, eclipse: {moon: true},
     ring: {ring: true}, distress: {deep: true}, ruins: {relic: true},
     supernova: {deep: true}, dust: {belt: true}, portal: {portal: true},
+    sunset: {world:true}, moonTransit: {moon:true},
+    stellarFlare: {star:true,nearStar:true}, pulsar: {pulsar:true},
+    nebulaTurbulence: {nebula:true}, fleet: {deep:true}, docking: {station:true},
   };
   for (const [type, conditions] of Object.entries(special)) {
     assert.equal(AsteriaEvents.start(type, {}, 4), null);
@@ -55,4 +58,20 @@ test('the Nereid route reaches the annulus while artificial rings are excluded',
   assert.equal(AsteriaSpace.nearRing(nereid, 1, 0), false);
   assert.equal(AsteriaSpace.nearRing(halogate, .78, 0), false);
   assert.equal(AsteriaSpace.nearRing(singularity, .78, 0), false);
+});
+
+
+test('simulated moon alignment uses actual world positions and changes with the observer', () => {
+  const scene=AsteriaSpace.scenes.nereid;
+  const [body,moon]=AsteriaSpace.flightBodies(scene,4);
+  const delta=moon.center.map((v,i)=>v-body.center[i]);
+  const fromMoon=moon.center.map((v,i)=>v+delta[i]*2);
+  const fromPlanet=body.center.map((v,i)=>v-delta[i]*2);
+  assert.ok(AsteriaSpace.alignments(scene,4,fromMoon).transit);
+  assert.ok(!AsteriaSpace.alignments(scene,4,fromPlanet).transit);
+  const light=scene.keyLight ?? [-.61,.53,-.59];
+  const towardLight=moon.center.map((v,i)=>v-light[i]*2);
+  assert.ok(AsteriaSpace.alignments(scene,4,towardLight).eclipse);
+  assert.ok(!AsteriaSpace.alignments(scene,4,fromPlanet).eclipse);
+  assert.equal(AsteriaEvents.start('stellarFlare',{star:true},4),null);
 });

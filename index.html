@@ -30,7 +30,7 @@
     <span id="tourPhase" role="status" aria-live="polite"></span>
   </div>
 </div><div class="panelbottom"><span>FLIGHT PLAN <b id="routeCode">OR-07</b></span><button id="qualityOpen" type="button" aria-haspopup="dialog" disabled>그래픽 품질</button></div></div>
-<div class="panel mainpanel"><div class="panelhead"><span><i></i> FLIGHT CONTROL</span><span id="modeLabel">SUBLIGHT DRIVE</span></div><div class="mainread"><div><small>순항 속도 / SIMULATED</small><div class="speed"><strong id="speedRead">0.24</strong><span>c</span></div></div><button class="warp" id="warp" disabled><span class="warpicon">✦</span><div><b>워프 항해</b><small>ENGAGE WARP</small></div></button></div><div class="throttle"><label for="speed">THROTTLE <b id="throttlePct">35%</b></label><input id="speed" type="range" min="0" max="100" value="35"><div class="scale"><span>정지</span><span>순항</span><span>최대</span></div></div><div class="controls"><button id="autopilot" aria-pressed="false">◇ 자동 시야</button><button id="reset">↺ 정면 복귀</button><button id="cinema" aria-pressed="false">▣ 관측 모드</button><button id="walkToggle" aria-pressed="false" disabled>함교 이동</button></div></div>
+<div class="panel mainpanel"><div class="panelhead"><span><i></i> FLIGHT CONTROL</span><span id="modeLabel">SUBLIGHT DRIVE</span></div><div class="mainread"><div><small>순항 속도 / SIMULATED</small><div class="speed"><strong id="speedRead">0.24</strong><span>c</span></div></div><button class="warp" id="warp" disabled><span class="warpicon">✦</span><div><b>워프 항해</b><small>ENGAGE WARP</small></div></button></div><div class="throttle"><label for="speed">THROTTLE <b id="throttlePct">35%</b></label><input id="speed" type="range" min="0" max="100" value="35"><div class="scale"><span>정지</span><span>순항</span><span>최대</span></div></div><div class="controls"><button id="autopilot" aria-pressed="false">◇ 자동 시야</button><button id="reset">↺ 정면 복귀</button><button id="cinema" aria-pressed="false">▣ 관측 모드</button><button id="walkToggle" aria-pressed="false" disabled>함교 이동</button><button id="flightToggle" type="button" aria-pressed="false" disabled>자유 조종</button></div><p id="flightCapability" hidden>자유 조종은 실시간 3D 구역에서 사용할 수 있습니다.</p></div>
 <div class="panel systempanel"><div class="panelhead"><span><i></i> SHIP SYSTEMS</span><span>03 / 艦況</span></div><div class="systembody"><div class="radar"><canvas id="radar" width="160" height="160"></canvas><span>LOCAL SCAN</span></div><div class="sysread"><div><span>동력 코어</span><b id="power">35%</b><i><em id="powerBar"></em></i></div><div><span>보호막</span><b id="shield">100%</b><i><em id="shieldBar" style="width:100%"></em></i></div><div><span>선체 안정성</span><b>100%</b><i><em style="width:100%"></em></i></div></div></div><div class="panelbottom"><span>ENVIRONMENT <b id="environment">STABLE</b></span><button id="marieOpen" type="button" aria-haspopup="dialog" disabled>마리</button></div><p id="marieBrief" aria-label="마리의 활동">계기판 점검</p></div>
 </section>
 <div class="eventcontrols"><button id="eventBtn">✧ 우주 상황</button><select id="eventSelect" aria-label="우주 상황 선택"></select><button id="randomEvent" aria-pressed="false">자동 상황 OFF</button><button id="roomToggle" aria-pressed="true">함교 ON</button></div>
@@ -39,6 +39,30 @@
   <button id="bridgeLights" type="button" aria-pressed="false">일반 조명</button>
   <label for="bridgeVolume">음량 <input id="bridgeVolume" type="range" min="0" max="100" value="100"></label>
 </div>
+<section id="flightPanel" aria-label="자유 조종" hidden>
+  <p id="flightReadout">0.00 SU/s</p>
+  <p id="flightGuidance" role="status">대기</p>
+  <div class="flight-actions">
+    <button id="flightCamera" type="button" aria-pressed="false">기수 시점</button>
+    <label for="flightAssist">보조
+      <select id="flightAssist"><option value="IDLE">수동</option><option value="APPROACH">접근</option>
+        <option value="ORBIT">공전</option><option value="OBSERVE">거리 유지</option><option value="DEPART">이탈</option></select>
+    </label>
+    <button id="flightNavigate" type="button">목적지 자동 항법</button>
+    <button id="flightExit" type="button">조종 종료</button>
+  </div>
+  <div class="flight-touch">
+    <div class="flight-stick" data-stick="rotation" aria-hidden="true"><span>피치 · 요</span><i></i></div>
+    <div class="flight-stick" data-stick="translation" aria-hidden="true"><span>좌우 · 전후</span><i></i></div>
+    <div class="flight-buttons">
+      <button type="button" data-flight-key="u" aria-label="위로 이동">↑</button>
+      <button type="button" data-flight-key="o" aria-label="아래로 이동">↓</button>
+      <button type="button" data-flight-key="q" aria-label="왼쪽 롤">↶</button>
+      <button type="button" data-flight-key="e" aria-label="오른쪽 롤">↷</button>
+      <button type="button" data-flight-key=" " aria-label="제동">정지</button>
+    </div>
+  </div>
+</section>
 <div class="touchpad" aria-label="터치 방향 조작"><button data-key="w" aria-label="위">▲</button><button data-key="a" aria-label="왼쪽">◀</button><button data-key="s" aria-label="아래">▼</button><button data-key="d" aria-label="오른쪽">▶</button>
 <button class="walk-only" data-key=" " aria-label="상승">↑</button>
 <button class="walk-only" data-key="shift" aria-label="하강">↓</button>
@@ -88,6 +112,7 @@
       <p id="mapVisitState"></p>
       <div class="map-journey">
         <p id="mapStatus" role="status"></p>
+        <p id="mapLocalFlight" hidden></p>
         <progress id="mapFlightProgress" max="1" value="0" aria-label="워프 진행률" hidden></progress>
         <button id="mapTravel" type="button" class="primary" disabled>선택 구역으로 워프</button>
       </div>
@@ -127,9 +152,9 @@
   <button id="cancelAssets" type="button" hidden>에셋 로드 취소</button>
   <button id="qualityClose" type="button" class="primary" autofocus>닫기</button>
 </dialog>
-<dialog id="helpDialog"><h2>항해 조작 매뉴얼</h2><p>마우스 또는 터치 드래그로 전 방향을 바라봅니다. 수직 회전도 360°입니다. 함교 이동에서는 WASD 및 방향키로 앞뒤와 좌우로 이동하고, Space/Shift로 높이를 바꿉니다. 마우스나 터치 드래그로 방향을 바꾸고 Q/E로 롤을 조작합니다. V로 함교 이동을 전환하고 Esc로 항해에 복귀합니다. 3D 관측 구역에서는 접근·이탈 버튼이나 관측 항로 슬라이더로 함선을 이동합니다. 이동 중에는 정지 버튼을 누르거나 슬라이더를 조작해 멈출 수 있습니다. 네레이드 항로는 고리 평면을 통과합니다. 관측 순회를 누르면 접근, 관측, 선회, 이탈 순서로 이동합니다. 순회를 중단하거나 시야·슬라이더를 직접 조작할 수 있습니다.</p><table><tr><th>W / S · ↑ / ↓</th><td>상하 회전</td></tr><tr><th>A / D · ← / →</th><td>좌우 회전</td></tr><tr><th>Q / E</th><td>롤 회전</td></tr><tr><th>R / 더블 클릭</th><td>정면 및 롤 초기화</td></tr><tr><th>C / Esc</th><td>관측 모드 전환 / 종료</td></tr><tr><th>+ / − 또는 마우스 휠</th><td>시야각 확대 / 축소</td></tr><tr><th>함교 ON/OFF</th><td>구조물 숨김 / 표시</td></tr></table><p>목적지를 선택하고 항해 버튼을 누르면 워프합니다. 상단 항해 지도에서도 3D 구역을 선택하고 예정 항로를 확인할 수 있습니다. 함선 상황의 마리 버튼은 현재 보고와 지원 요청을 엽니다. 관측 모드의 자동 관측 시작을 누르면 잠시 머문 뒤 다음 구역으로 이동합니다. 우주 상황은 수동 또는 자동으로 경험할 수 있습니다.</p><button id="closeHelp" class="primary">닫기</button></dialog>
+<dialog id="helpDialog"><h2>항해 조작 매뉴얼</h2><p>P 자유 조종 · WASD 피치/요 · Q/E 롤 · I/K 전후 · J/L 좌우 · U/O 상하 · Shift/Ctrl 추력 · Space 제동 · Esc 복귀. 독립 시점에서는 드래그로 관측 방향을 바꿀 수 있습니다.</p><p>마우스 또는 터치 드래그로 전 방향을 바라봅니다. 수직 회전도 360°입니다. 함교 이동에서는 WASD 및 방향키로 앞뒤와 좌우로 이동하고, Space/Shift로 높이를 바꿉니다. 마우스나 터치 드래그로 방향을 바꾸고 Q/E로 롤을 조작합니다. V로 함교 이동을 전환하고 Esc로 항해에 복귀합니다. 3D 관측 구역에서는 접근·이탈 버튼이나 관측 항로 슬라이더로 함선을 이동합니다. 이동 중에는 정지 버튼을 누르거나 슬라이더를 조작해 멈출 수 있습니다. 네레이드 항로는 고리 평면을 통과합니다. 관측 순회를 누르면 접근, 관측, 선회, 이탈 순서로 이동합니다. 순회를 중단하거나 시야·슬라이더를 직접 조작할 수 있습니다.</p><table><tr><th>W / S · ↑ / ↓</th><td>상하 회전</td></tr><tr><th>A / D · ← / →</th><td>좌우 회전</td></tr><tr><th>Q / E</th><td>롤 회전</td></tr><tr><th>R / 더블 클릭</th><td>정면 및 롤 초기화</td></tr><tr><th>C / Esc</th><td>관측 모드 전환 / 종료</td></tr><tr><th>+ / − 또는 마우스 휠</th><td>시야각 확대 / 축소</td></tr><tr><th>함교 ON/OFF</th><td>구조물 숨김 / 표시</td></tr></table><p>목적지를 선택하고 항해 버튼을 누르면 워프합니다. 상단 항해 지도에서도 3D 구역을 선택하고 예정 항로를 확인할 수 있습니다. 함선 상황의 마리 버튼은 현재 보고와 지원 요청을 엽니다. 관측 모드의 자동 관측 시작을 누르면 잠시 머문 뒤 다음 구역으로 이동합니다. 우주 상황은 수동 또는 자동으로 경험할 수 있습니다.</p><button id="closeHelp" class="primary">닫기</button></dialog>
 <div id="startupPanel">
   <p id="startupStatus" role="status">관측창 에셋을 불러오는 중입니다.</p>
   <button id="retryStartup" type="button" class="primary" hidden>다시 시도</button>
 </div>
-</main><script src="sectors.js" defer></script><script src="space.js" defer></script><script src="bridge-layout.js" defer></script><script src="marie-rig.js" defer></script><script src="marie-motion.js" defer></script><script src="marie.js" defer></script><script src="bridge-room.js" defer></script><script src="events.js" defer></script><script src="navigation-map.js" defer></script><script src="bridge-audio.js" defer></script><script src="sky-assets.js" defer></script><script src="app.js" defer></script></body></html>
+</main><script src="sectors.js" defer></script><script src="space.js" defer></script><script src="flight.js" defer></script><script src="bridge-layout.js" defer></script><script src="marie-rig.js" defer></script><script src="marie-motion.js" defer></script><script src="marie.js" defer></script><script src="bridge-room.js" defer></script><script src="events.js" defer></script><script src="navigation-map.js" defer></script><script src="bridge-audio.js" defer></script><script src="sky-assets.js" defer></script><script src="app.js" defer></script></body></html>

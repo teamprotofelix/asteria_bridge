@@ -10,15 +10,24 @@ for (const {group, id, name, description, code} of AsteriaSectors.additions) {
 const events = AsteriaEvents.catalog;
 let eventOptionsKey = '';
 let wasInRing = false;
+const eventCooldown = new Map();
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, keys=new Set();
 let yaw=0,pitch=0,roll=0,zoom=1,focal=500,w=1,h=1,dpr=1,throttle=35,auto=false,cinema=false,room=true,dest=0,warp=null,loading=false,event=null,random=false,nextEvent=0,drag=null,last=performance.now(),elapsed=0,toastTimer,clockSec=-1;
 const wrap=a=>((a+180)%360+360)%360-180, clamp=(x,a,b)=>Math.max(a,Math.min(b,x)), rad=Math.PI/180;
 const soundscape = AsteriaAudio.create();
+const flight = AsteriaFlight.create();
+let independentView = null, flightTravel = null, flightRecovery = '', activeFlightScene = null;
+const flightKeys = new Set();
+const sticks = {rotation:[0,0], translation:[0,0]};
+const flightStatusNames = {IDLE:'수동 조종',PLAN:'항로 계산',ALIGN:'기수 정렬',LOAD:'에셋 준비',
+  WARP:'워프',ARRIVE:'도착',APPROACH:'접근 보조',ORBIT:'공전 보조',OBSERVE:'관측 거리 유지',
+  DEPART:'이탈 보조',ABORT:'출항 취소',RECOVER:'현재 구역 유지'};
+const flightKeyNames = new Set(['w','a','s','d','q','e','i','k','j','l','u','o','shift','control',' ']);
 let watch = null, audioWarp = null, nextAudioUpdate = 0, nextRadarCue = 0;
 let hatchOpen = false, hatchSlide = 0, hatchOverride = null;
 let seat = null, standingPose = null, stepDistance = 0;
 let nightBridge = false, bridgeAlert = 0, bridgeWarp = 0;
-const safeBridgeEvents = new Set(['meteor', 'asteroid', 'flare', 'ring', 'dust']);
+const safeBridgeEvents = new Set(['meteor','asteroid','flare','ring','dust','stellarFlare','pulsar','nebulaTurbulence']);
 let drawnMariePose = null, lastMarieDraw = 0, crewClockReset = false;
 const watchSeconds = 45;
 const watchRoute = ['nereid', 'gaia', 'halogate', 'nebula', 'cryon', 'helion', 'undertow', 'hush'];
@@ -287,7 +296,7 @@ function gpuLayer(canvas, alpha) {
     gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
     gl.uniform1i(shader.sampler, 0);
     if (!geometry) gl.uniform2f(presentation, skyStyle?.heading ?? 0, Number(!!skyStyle?.width));
-    const distance = geometry ? space.draw(reduced ? 0 : elapsed, approach, orbit) : null;
+    const distance = geometry ? space.draw(reduced ? 0 : elapsed, approach, orbit, flight.state?.position) : null;
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     return distance;
   }
@@ -373,7 +382,7 @@ function adaptQuality(now, frameMs) {
 }
 function updateCamera() {
   if (!cameraDirty) return;
-  const orientation = walking ? walkOrientation : AsteriaBridge.orientation(yaw * rad, pitch * rad, roll * rad);
+  const orientation = flight.state ? independentView ?? flight.state.orientation : walking ? walkOrientation : AsteriaBridge.orientation(yaw * rad, pitch * rad, roll * rad);
   cameraMatrix = AsteriaBridge.matrix(orientation);
   cameraDirty = false;
 }
@@ -381,7 +390,10 @@ function updateCamera() {
 function turnView(horizontal, vertical, bank = 0) {
   if (!horizontal && !vertical && !bank) return;
   if (tour) stopRoute();
-  if (walking) {
+  if (flight.state) {
+    if (!independentView) return;
+    independentView = AsteriaBridge.turn(independentView,horizontal*rad,vertical*rad,bank*rad);
+  } else if (walking) {
     walkOrientation = AsteriaBridge.turn(walkOrientation, horizontal * rad, vertical * rad, bank * rad);
   } else {
     yaw = wrap(yaw + horizontal);
@@ -415,7 +427,7 @@ function moveInside(dt, inputs = keys) {
 function renderCamera(now, frameMs) {
   if (!ready) return;
   if (renderer.sky.geometry && !reduced && qualityMode === 'auto') adaptQuality(now, frameMs);
-  const angles = walking ? walkOrientation : [yaw, pitch, roll];
+  const angles = flight.state ? [...(independentView ?? flight.state.orientation),...flight.state.position] : walking ? walkOrientation : [yaw, pitch, roll];
   const key = [...angles, zoom, w, h, room, revision].join('/');
   const roomFrame = [hatchSlide, nightBridge, !!watch, bridgeWarp, bridgeAlert].join('/');
   const roomPosition = walkPosition.join('/');
@@ -464,6 +476,13 @@ function updateRendererLabel() {
   $('approachControl').hidden = !geometry;
   $('bridge').classList.toggle('route-available', geometry);
   if (!renderer.room.interior && walking) setWalking(false);
+  if (!geometry && event?.type==='stellarFlare') endEvent();
+  if (!geometry && flight.state) {
+    cancelFlightTravel();
+    if (event) endEvent();
+    setPilot(false);
+    notify('자유 조종 종료 · 기존 360° 관측으로 복귀');
+  }
   updateWalkControls();
   if (geometry) updateRouteControls();
   else stopRoute();
@@ -473,6 +492,7 @@ function uploadSky(sky) {
   try {
     const geometry = renderer.sky.space ? sky.geometry : null;
     renderer.sky.upload(geometry ? geometry.background : sky.panorama ?? sky.legacy, geometry, {width: sky.quality.width, heading: sky.quality.heading});
+    activeFlightScene=geometry?.scene ?? null;
     const {tier, width, reason} = sky.quality;
     activeQuality = {tier, width, reason};
   } catch (error) {
@@ -517,7 +537,7 @@ for (const id of ['skyView', 'roomView']) {
 }
 function notify(msg){$('toast').textContent=msg;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),2800);}
 function updateRouteControls() {
-  const blocked = !ready || !renderer.sky.geometry || loading || !!warp;
+  const blocked = !ready || !renderer.sky.geometry || loading || !!warp || !!flight.state;
   $('approach').disabled = $('approachNear').disabled = $('approachFar').disabled = blocked;
   $('tourBtn').disabled = blocked || walking;
   $('tourBtn').textContent = tour ? '순회 정지' : '관측 순회';
@@ -663,6 +683,7 @@ const navigationMap = AsteriaNavigationMap.create(destinations, groups, {
 });
 $('mapOpen').onclick = () => {
   keys.clear();
+  neutralFlightInput();
   drag = null;
   navigationMap.open();
 };
@@ -673,6 +694,7 @@ $('destinationSelect').addEventListener('change', event => {
 });
 $('marieOpen').onclick = () => {
   keys.clear();
+  neutralFlightInput();
   drag = null;
   marie.open();
 };
@@ -720,13 +742,21 @@ function layoutControls(){const main=$('bridge').getBoundingClientRect(),console
 function resize(){const r=$('view').getBoundingClientRect();w=r.width;h=r.height;dpr=Math.min(devicePixelRatio||1,1.6,2200/Math.max(w,h,1));const c=$('effects');c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);updateFocal();layoutControls();}
 function updateFocal(){focal=Math.max(Math.min(w,h)*.74,h*.44)*zoom;revision++;}
 function updateWalkControls() {
+  const pilot = !!flight.state;
+  const canPilot = ready && renderer.sky.geometry;
+  $('flightToggle').disabled = !canPilot || loading || !!warp || !!flightTravel;
+  $('flightToggle').setAttribute('aria-pressed',String(pilot));
+  $('flightToggle').textContent = pilot ? '조종 종료' : '자유 조종';
+  $('flightCapability').hidden = !ready || canPilot;
+  $('flightPanel').hidden = !pilot && !flightTravel;
+  $('bridge').classList.toggle('piloting',pilot);
   const available = ready && renderer.room.interior;
   $('walkToggle').disabled = !available || loading || !!warp;
   $('walkToggle').title = available ? '함교 이동 모드' : '함교 이동에는 실시간 3D 렌더러가 필요합니다.';
   $('walkToggle').setAttribute('aria-pressed', String(walking));
   $('walkToggle').textContent = walking ? '항해 복귀' : '함교 이동';
   $('bridge').classList.toggle('walking', walking);
-  $('viewMode').textContent = seat ? 'SEATED' : walking ? 'WALK' : cinema ? 'OBSERVE' : auto ? 'AUTO' : 'MANUAL';
+  $('viewMode').textContent = pilot ? 'PILOT' : seat ? 'SEATED' : walking ? 'WALK' : cinema ? 'OBSERVE' : auto ? 'AUTO' : 'MANUAL';
   updateBridgeAction();
   $('viewHint').textContent = walking ? 'WASD 이동 · Space/Shift 높이 · F 상호작용 · Esc 복귀'
     : 'W A S D · 드래그 · Q/E 롤 · R 정면 · C 관측';
@@ -737,6 +767,15 @@ function setAuto(on) {
   updateWalkControls();
 }
 function reset() {
+  if (flight.state) {
+    flight.assist('IDLE');
+    flight.brake();
+    const orientation = AsteriaBridge.orientation(0,0,0);
+    if (independentView) independentView=orientation;
+    else flight.state.orientation=orientation;
+    cameraDirty=true;
+    return;
+  }
   if (tour) stopRoute();
   setAuto(false);
   yaw = pitch = roll = 0;
@@ -753,6 +792,8 @@ function setWalking(on) {
   if (on && (!ready || !renderer.room.interior || loading || warp)) return;
   if (walking === on) return;
   if (on) {
+    cancelFlightTravel();
+    setPilot(false);
     setCinema(false);
     setRoom(true);
     stopRoute();
@@ -773,6 +814,7 @@ function setCinema(on) {
   const active = document.activeElement;
   const restoreFocus = active === $('exitCinema') || $('observationControls').contains(active);
   if (on && walking) setWalking(false);
+  if (on && flight.state) {cancelFlightTravel();setPilot(false);}
   if (!on && watch) stopWatch();
   cinema = on;
   $('bridge').classList.toggle('cinematic', on);
@@ -981,7 +1023,15 @@ if(event){let e=event,eventState=AsteriaEvents.state(e,elapsed),p=reduced?.52:ev
 if(e.type==='comet'||e.type==='flyby'){let a=project(-8+16*p,.85+Math.sin(p*Math.PI)*.5,6),b=project(-10+16*p,-.1,6.8);if(a){if(e.type==='comet'){line(a,b,`rgba(119,204,255,${fade*.56})`,9);line(a,b,`rgba(221,245,255,${fade*.9})`,2);let g=ctx.createRadialGradient(a[0],a[1],0,a[0],a[1],35);g.addColorStop(0,'#eefaff');g.addColorStop(1,'#95d9ff00');ctx.fillStyle=g;ctx.fillRect(a[0]-35,a[1]-35,70,70);}else{ctx.fillStyle='#90c6d5';ctx.fillRect(a[0]-9,a[1]-3,18,6);ctx.fillStyle='#3f708c';ctx.fillRect(a[0]-22,a[1]-5,11,10);ctx.fillRect(a[0]+11,a[1]-5,11,10);ctx.fillStyle='#e3faff';ctx.fillRect(a[0]-2,a[1]-2,4,4);}}}
 if(e.type==='flare'){let a=project(.6,.2,1);if(a){let r=Math.max(w,h)*.75,g=ctx.createRadialGradient(a[0],a[1],0,a[0],a[1],r);g.addColorStop(0,`rgba(255,170,65,${fade*(e.responded ? .14 : .36)})`);g.addColorStop(1,'#ff652000');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);}}
 if(e.type==='signal'){let a=project(1.2,.7,3);if(a){ctx.strokeStyle=`rgba(110,255,214,${fade*.65})`;ctx.lineWidth=1.4;for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(a[0],a[1],5+((p*130+i*20)%60),0,7);ctx.stroke();}}}}
-  if (event) AsteriaEvents.draw(event, elapsed, {ctx, width: w, height: h, project, reduced});
+  if (event) {
+    const context=event.type==='moonTransit' ? eventContext() : null;
+    const projection=context?.moonPosition ? (...world)=>{
+      const eye=flight.state?.position ?? AsteriaSpace.cameraPoint(sectorScene(),approach,orbit);
+      return project(...world.map((value,i)=>value-eye[i]));
+    } : project;
+    AsteriaEvents.draw(context ? {...event,position:context.moonPosition} : event,elapsed,
+      {ctx,width:w,height:h,project:projection,reduced});
+  }
   const drone = marie.droneView();
   if (drone) {
     const t = reduced ? .82 : drone.progress;
@@ -1009,6 +1059,182 @@ function updateSpeed(wa = 0) {
   $('speedRead').textContent = wa > .2 ? (1 + wa*8).toFixed(2) : (throttle*.0068).toFixed(2);
 }
 
+function sectorScene() {
+  return activeFlightScene ?? AsteriaSpace.scenes[destinations[dest][0]];
+}
+function localBodies() {
+  const scene=sectorScene();
+  return scene ? AsteriaSpace.flightBodies(scene,reduced ? 0 : elapsed) : [];
+}
+function neutralFlightInput() {
+  flightKeys.clear();
+  sticks.rotation=[0,0];
+  sticks.translation=[0,0];
+  for (const element of document.querySelectorAll('[data-stick]')) {
+    element.style.removeProperty('--stick-x');
+    element.style.removeProperty('--stick-y');
+  }
+}
+function setPilot(on) {
+  if (on===!!flight.state) return;
+  if (on && (!ready || !renderer.sky.geometry || warp || loading)) return;
+  if (on) {
+    setWalking(false);
+    setCinema(false);
+    setAuto(false);
+    stopRoute();
+    const point=AsteriaSpace.cameraPoint(sectorScene(),approach,orbit);
+    flight.begin(destinations[dest][0],point,AsteriaBridge.orientation(yaw*rad,pitch*rad,roll*rad),localBodies());
+    flightRecovery='';
+  } else {
+    flight.stop();
+    navigationMap.flightStatus('IDLE',dest,false);
+  }
+  independentView=null;
+  keys.clear();
+  neutralFlightInput();
+  cameraDirty=true;
+  revision++;
+  updateWalkControls();
+  updateRouteControls();
+}
+function flightControls(dt) {
+  const state=flight.state;
+  if (!state || document.hidden) return;
+  const axis=(a,b)=>Number(flightKeys.has(a))-Number(flightKeys.has(b));
+  const rotation=[axis('s','w')+sticks.rotation[1],axis('d','a')+sticks.rotation[0],axis('e','q')];
+  const translation=[axis('l','j')+sticks.translation[0],axis('u','o'),axis('i','k')-sticks.translation[1]];
+  const throttle=axis('shift','control'), brake=flightKeys.has(' ');
+  const manual=rotation.some(Boolean)||translation.some(Boolean)||throttle||brake;
+  if (manual) {
+    if (flightTravel) cancelFlightTravel();
+    if (!loading && !warp && flightRecovery) flightRecovery='';
+  }
+  if (loading || warp) return;
+  const bodies=localBodies();
+  if (flightTravel?.phase==='ALIGN') {
+    // Map axes are fictional. This is a local forward alignment before the existing warp transition.
+    const basis=AsteriaBridge.matrix(state.orientation);
+    rotation[0]=-Math.atan2(basis[5],basis[8])*2;
+    rotation[1]=-Math.atan2(basis[6],basis[8])*2;
+    rotation[2]=-Math.atan2(basis[1],basis[0])*2;
+    if (Math.hypot(...rotation)<.12 || flightTravel.deadline<=performance.now()) {
+      const plan=flightTravel;
+      plan.phase='LOAD';
+      void engage(plan.target,null,plan);
+    }
+  }
+  flight.advance(dt,{rotation,translation,throttle,brake},bodies,
+    point=>AsteriaSpace.nearRing(sectorScene(),0,0,point));
+  cameraDirty=true;
+}
+function updateFlightHud() {
+  const state=flight.state, plan=flightTravel;
+  if (!state && !plan) return;
+  const value=state ? state.position.map(n=>n.toFixed(2)).join(' / ') : '—';
+  const speed=state ? Math.hypot(...state.velocity).toFixed(2) : '0.00';
+  const coordinates=state ? state.sectorId.toUpperCase()+' · '+value+' SU' : value;
+  const readout=coordinates+' · '+speed+' SU/s'+(state ? ' · 추력 '+Math.round(state.throttle*100)+'%' : '');
+  if ($('flightReadout').textContent!==readout) $('flightReadout').textContent=readout;
+  const phase=plan?.phase ?? state?.assist ?? 'IDLE';
+  const ring=state && AsteriaSpace.nearRing(sectorScene(),0,0,state.position);
+  const guidance=state?.hazard || flightRecovery || (flightStatusNames[phase]+(ring?' · 고리 파편 감속':''));
+  if ($('flightGuidance').textContent!==guidance) $('flightGuidance').textContent=guidance;
+  $('flightAssist').value=state?.assist ?? 'IDLE';
+  $('flightAssist').disabled=!state || !!plan;
+  $('flightCamera').disabled=!state || !!plan;
+  $('flightCamera').textContent=independentView ? '독립 시점' : '기수 시점';
+  $('flightCamera').setAttribute('aria-pressed',String(!!independentView));
+  $('flightNavigate').disabled=!!warp || (!plan && (loading || Number($('destinationSelect').value)===dest));
+  $('flightNavigate').textContent=warp ? '워프 진행 중' : plan ? '자동 항법 취소' : '목적지 자동 항법';
+  $('flightExit').disabled=!!warp;
+  navigationMap.flightStatus(phase,plan?.target ?? dest,ring,state?.position);
+}
+
+function recoverFlightTravel(plan, cancelled) {
+  if (flightTravel!==plan) return;
+  plan.phase=cancelled ? 'ABORT' : 'RECOVER';
+  if (flight.state?.sectorId===plan.sectorId) {
+    flight.state.orientation=plan.orientation;
+    flight.brake();
+    cameraDirty=true;
+  }
+  flightTravel=null;
+  flightRecovery=cancelled ? '출항 취소 · 현재 구역 유지' : '항로 복구 · 현재 구역 유지';
+  updateWalkControls();
+}
+
+function cancelFlightTravel() {
+  if (!flightTravel || warp) return;
+  if (flightTravel.phase==='LOAD') assetRequest?.abort();
+  recoverFlightTravel(flightTravel,true);
+}
+function startFlightTravel() {
+  if (flightTravel) {cancelFlightTravel();return;}
+  const target=Number($('destinationSelect').value);
+  if (!flight.state || loading || warp || target===dest) return;
+  flightRecovery='';
+  flight.assist('IDLE');
+  flight.brake();
+  flightTravel={phase:'PLAN',target,deadline:performance.now()+1400,
+    sectorId:flight.state.sectorId,orientation:[...flight.state.orientation]};
+  updateWalkControls();
+}
+function enterFlight() {
+  if (flightTravel) cancelFlightTravel();
+  else setPilot(!flight.state);
+  if (flight.state) $('view').focus({preventScroll:true});
+}
+$('flightToggle').onclick=enterFlight;
+$('flightExit').onclick=enterFlight;
+$('flightNavigate').onclick=startFlightTravel;
+$('flightCamera').onclick=()=>{
+  if (!flight.state) return;
+  independentView=independentView ? null : [...flight.state.orientation];
+  cameraDirty=true;
+  $('view').focus({preventScroll:true});
+};
+$('flightAssist').onchange=event=>{
+  flightRecovery='';
+  flight.assist(event.target.value);
+  $('view').focus({preventScroll:true});
+};
+for (const stick of document.querySelectorAll('[data-stick]')) {
+  let pointer=null;
+  function move(event) {
+    if (event.pointerId!==pointer) return;
+    const rect=stick.getBoundingClientRect(), radius=rect.width*.36;
+    const x=clamp((event.clientX-(rect.left+rect.width/2))/radius,-1,1);
+    const y=clamp((event.clientY-(rect.top+rect.height/2))/radius,-1,1);
+    sticks[stick.dataset.stick]=[x,y];
+    stick.style.setProperty('--stick-x',x*radius+'px');
+    stick.style.setProperty('--stick-y',y*radius+'px');
+  }
+  stick.onpointerdown=event=>{
+    if (pointer!==null) return;
+    pointer=event.pointerId;
+    stick.setPointerCapture(pointer);
+    move(event);
+  };
+  stick.onpointermove=move;
+  stick.onlostpointercapture=()=>{
+    pointer=null;
+    sticks[stick.dataset.stick]=[0,0];
+    stick.style.removeProperty('--stick-x');
+    stick.style.removeProperty('--stick-y');
+  };
+}
+for (const button of document.querySelectorAll('[data-flight-key]')) {
+  const key=button.dataset.flightKey;
+  button.onpointerdown=event=>{button.setPointerCapture(event.pointerId);flightKeys.add(key);};
+  button.onlostpointercapture=()=>flightKeys.delete(key);
+  button.onclick=event=>{
+    if (event.detail===0 && flight.state && key===' ') {
+      flight.assist('IDLE');
+      flight.brake();
+    }
+  };
+}
 function setTravelBusy(busy) {
   navigationMap.setBusy(busy);
   $('warp').disabled = $('travel').disabled = $('destinationSelect').disabled = busy;
@@ -1019,13 +1245,17 @@ function setTravelBusy(busy) {
   updateWatchControls();
 }
 
-async function engage(n = null, session = null) {
+async function engage(n = null, session = null, plan = null) {
   if (warp || loading) return;
   if (!ready) {
     notify('초기 우주 에셋 준비 중입니다.');
     return;
   }
   setWalking(false);
+  if (!plan) {
+    cancelFlightTravel();
+    setPilot(false);
+  }
   loading = true;
   const request = new AbortController();
   assetRequest = request;
@@ -1035,9 +1265,13 @@ async function engage(n = null, session = null) {
   if (n !== null) marie.plan(n);
   try {
     const images = n !== null && n !== dest ? await loadSky(n, '', request.signal) : null;
-    if (session && watch !== session) return;
+    if (request.signal.aborted || (plan && flightTravel!==plan) || (session && watch !== session)) return;
     if (event) endEvent();
-    warp = {start: performance.now(), next: n, changed: false, images};
+    if (plan) {
+      plan.phase='WARP';
+      setPilot(false);
+    }
+    warp = {start: performance.now(), next: n, changed: false, images, plan};
     audioWarp = 0;
     navigationMap.begin(n);
     marie.depart(n);
@@ -1058,7 +1292,10 @@ async function engage(n = null, session = null) {
     loading = false;
     assetRequest = null;
     setTravelBusy(!!warp);
-    if (!warp) $('flightStatus').textContent = '순항 항해 중';
+    if (!warp) {
+      $('flightStatus').textContent = '순항 항해 중';
+      if (plan) recoverFlightTravel(plan,false);
+    }
   }
 }
 
@@ -1075,10 +1312,17 @@ function advanceWarp(now) {
   }
   if (p < 1) return reduced ? 0 : clamp(Math.min(p*5, (1-p)*4), 0, 1);
 
+  const plan=warp.plan;
   warp = null;
   audioWarp = null;
   navigationMap.arrive(dest);
   marie.arrive(dest);
+  if (plan && plan===flightTravel) {
+    plan.phase='ARRIVE';
+    flightTravel=null;
+    setPilot(true);
+    if (flight.state) flight.assist('APPROACH');
+  }
   setTravelBusy(false);
   $('warp').classList.remove('engaged');
   $('warp').querySelector('b').textContent = '워프 항해';
@@ -1090,17 +1334,26 @@ function advanceWarp(now) {
 
 function eventContext() {
   const [id, , , , group] = destinations[dest];
-  const scene = AsteriaSpace.scenes[id];
+  const scene = sectorScene();
   const deep = group === 'deep' || id === 'deep' || id === 'nebula';
   const world = group === 'world' || ['nereid', 'selene', 'eos', 'gaia'].includes(id);
+  const star = group === 'star' || id === 'solaris';
+  const time = reduced ? 0 : elapsed;
+  const sample = scene && renderer.sky.geometry ? AsteriaSpace.sample(scene,time,approach,orbit) : null;
+  const eye = flight.state?.position ?? sample?.eye;
+  const alignment = sample && world ? AsteriaSpace.alignments(scene,time,eye) : null;
+  const primary=flight.state && star ? localBodies()[0] : null;
+  const nearStar=primary ? Math.hypot(...eye.map((value,i)=>value-primary.center[i])) < primary.radius+6 : approach>=.55;
   return {
-    id, deep, world,
-    moon: world && !!scene?.moon,
-    star: group === 'star' || id === 'solaris',
+    id, deep, world, alignment, nearStar:star && !!sample && nearStar,
+    moon: world && !!scene?.moon, star,
+    moonPosition: sample && scene.moon ? Array.from(sample.spheres.slice(4,7)) : null,
+    pulsar:['hush','undertow'].includes(id), nebula:['nebula','hush','eirene','velaris'].includes(id),
+    station:['halogate','silentarray'].includes(id),
     belt: !!scene?.belt,
     relic: group === 'relic',
     portal: id === 'halogate' || id === 'palimpsest',
-    ring: !!(scene && renderer.sky.geometry && AsteriaSpace.nearRing(scene, approach, orbit)),
+    ring: !!(scene && renderer.sky.geometry && AsteriaSpace.nearRing(scene, approach, orbit,flight.state?.position)),
   };
 }
 
@@ -1155,6 +1408,10 @@ $('eventAction').onclick = () => {
   const next = AsteriaEvents.respond(event, elapsed);
   if (!next || next === event) return;
   event = next;
+  if (flight.state && ['asteroid','ring','stellarFlare','docking'].includes(event.type)) {
+    flight.assist(event.type==='docking' ? 'OBSERVE' : 'IDLE');
+    if (event.type!=='docking') flight.brake();
+  }
   $('eventDescription').textContent = events[event.type].action[1];
   $('eventAction').hidden = true;
   $('eventDismiss').focus({preventScroll: true});
@@ -1174,7 +1431,7 @@ function updateEvents() {
   }
 
   const context = eventContext();
-  const key = context.id + '/' + context.ring;
+  const key = [context.id,context.ring,context.nearStar].join('/');
   if (eventOptionsKey !== key) {
     eventOptionsKey = key;
     for (const option of $('eventSelect').options) {
@@ -1187,13 +1444,21 @@ function updateEvents() {
   wasInRing = context.ring;
   if (!random || event || warp || loading || watch) return;
   if (enteredRing || elapsed >= nextEvent) {
-    const available = Object.keys(events).filter(type => AsteriaEvents.eligible(type, context));
-    const type = enteredRing ? 'ring' : available[Math.floor(Math.random() * available.length)];
-    startEvent(type, context);
+    const available = Object.keys(events).filter(type=>AsteriaEvents.eligible(type,context)
+      && (eventCooldown.get(context.id+'/'+type) ?? 0)<=elapsed);
+    const aligned = {sunrise:context.alignment?.horizon,sunset:context.alignment?.horizon,
+      eclipse:context.alignment?.eclipse,moonTransit:context.alignment?.transit};
+    const preferred = available.filter(type=>aligned[type]);
+    const candidates = preferred.length ? preferred : available.filter(type=>!Object.hasOwn(aligned,type) || aligned[type]);
+    const type = enteredRing ? 'ring' : candidates[Math.floor(Math.random()*candidates.length)];
+    if (type) {
+      startEvent(type, context);
+      eventCooldown.set(context.id+'/'+type,elapsed+events[type].seconds+45);
+    }
     nextEvent = elapsed + 30 + Math.random() * 30;
   }
 }
-$('travel').onclick=()=>engage(+$('destinationSelect').value);$('warp').onclick=()=>engage();$('speed').oninput=e=>{throttle=+e.target.value;updateSpeed();updateAudio();};$('autopilot').onclick=()=>{if(tour)stopRoute();setWalking(false);setAuto(!auto);};$('walkToggle').onclick=()=>{setWalking(!walking);$('view').focus({preventScroll:true});};$('reset').onclick=reset;$('cinema').onclick=()=>setCinema(true);$('exitCinema').onclick=()=>setCinema(false);$('roomToggle').onclick=()=>setRoom(!room);$('eventBtn').onclick=()=>startEvent($('eventSelect').value);$('randomEvent').onclick=()=>{random=!random;nextEvent=elapsed+6;$('randomEvent').textContent='자동 상황 '+(random?'ON':'OFF');$('randomEvent').setAttribute('aria-pressed',String(random));};$('help').onclick=()=>$('helpDialog').showModal();$('closeHelp').onclick=()=>$('helpDialog').close();$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{notify('전체 화면을 지원하지 않거나 차단되었습니다.');}};
+$('travel').onclick=()=>engage(+$('destinationSelect').value);$('warp').onclick=()=>engage();$('speed').oninput=e=>{throttle=+e.target.value;updateSpeed();updateAudio();};$('autopilot').onclick=()=>{if(tour)stopRoute();cancelFlightTravel();setPilot(false);setWalking(false);setAuto(!auto);};$('walkToggle').onclick=()=>{setWalking(!walking);$('view').focus({preventScroll:true});};$('reset').onclick=reset;$('cinema').onclick=()=>setCinema(true);$('exitCinema').onclick=()=>setCinema(false);$('roomToggle').onclick=()=>setRoom(!room);$('eventBtn').onclick=()=>startEvent($('eventSelect').value);$('randomEvent').onclick=()=>{random=!random;nextEvent=elapsed+6;$('randomEvent').textContent='자동 상황 '+(random?'ON':'OFF');$('randomEvent').setAttribute('aria-pressed',String(random));};$('help').onclick=()=>$('helpDialog').showModal();$('closeHelp').onclick=()=>$('helpDialog').close();$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{notify('전체 화면을 지원하지 않거나 차단되었습니다.');}};
 $('sound').onclick = $('watchSound').onclick = toggleSound;
 $('watchStart').onclick = startWatch;
 $('watchNext').onclick = () => {
@@ -1203,18 +1468,34 @@ const view=$('view');view.addEventListener('pointerdown',e=>{if(e.button!==0)ret
 const map={arrowup:'w',arrowdown:'s',arrowleft:'a',arrowright:'d'}, editable=el=>el&&['INPUT','SELECT','TEXTAREA'].includes(el.tagName);
 window.addEventListener('keydown', e => {
   if ($('mapDialog').open || $('marieDialog').open || $('qualityDialog').open) return;
+  if (e.key==='Escape' && flightTravel) {
+    cancelFlightTravel();
+    return;
+  }
   if (e.key === 'Escape' && assetRequest && !cinema) {
     assetRequest.abort();
     return;
   }
   if (e.key === 'Escape') {
     if (cinema) setCinema(false);
+    if (flight.state) setPilot(false);
     if (walking) setWalking(false);
     keys.clear();
     return;
   }
-  if ($('helpDialog').open || editable(document.activeElement) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if ($('helpDialog').open || editable(document.activeElement) || e.metaKey || e.altKey) return;
   const k = map[e.key.toLowerCase()] || e.key.toLowerCase();
+  if (k==='p' && !e.ctrlKey && !e.repeat) {
+    e.preventDefault();
+    enterFlight();
+    return;
+  }
+  if (flight.state && flightKeyNames.has(k) && (!e.ctrlKey || k==='control')) {
+    e.preventDefault();
+    flightKeys.add(k);
+    return;
+  }
+  if (e.ctrlKey) return;
   const vertical = walking && [' ', 'shift'].includes(k) && document.activeElement === view;
   if ((k.length === 1 && 'wasdqe'.includes(k)) || vertical) {
     e.preventDefault();
@@ -1232,13 +1513,19 @@ window.addEventListener('keydown', e => {
     else if (k === '-') zoomBy(-.1);
   }
 });
-window.addEventListener('keyup',e=>keys.delete(map[e.key.toLowerCase()]||e.key.toLowerCase()));
-window.addEventListener('blur',()=>{keys.clear();drag=null;});
+window.addEventListener('keyup',e=>{
+  const key=map[e.key.toLowerCase()]||e.key.toLowerCase();
+  keys.delete(key);
+  flightKeys.delete(key);
+});
+window.addEventListener('blur',()=>{keys.clear();neutralFlightInput();drag=null;});
 document.addEventListener('visibilitychange', () => {
   if (watch) watch.skipFrame = true;
   crewClockReset = true;
   if (document.hidden) {
     keys.clear();
+    neutralFlightInput();
+    flight.brake();
     resetQualitySamples();
   }
   updateAudio();
@@ -1262,7 +1549,10 @@ document.querySelectorAll('[data-key]').forEach(button => {
 });
 function frame(now){const frameMs=now-last;let dt=Math.min(.12,frameMs/1000);last=now;elapsed+=dt;const step = 92*dt;
 const bank = step*(Number(keys.has('e')) - Number(keys.has('q')));
-if (walking) {
+if (flightTravel?.phase==='PLAN') flightTravel.phase='ALIGN';
+if (flight.state) {
+  flightControls(dt);
+} else if (walking) {
   turnView(0, 0, bank);
   updateCamera();
   moveInside(dt);
@@ -1284,9 +1574,10 @@ advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();if (ready && !doc
     {walking, eye:walkPosition, hatch:hatchSlide, loading});
   crewClockReset = false;
 }
-renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);const displayYaw = walking ? Math.atan2(cameraMatrix[6],cameraMatrix[8])/rad : yaw;
-const displayPitch = walking ? Math.asin(clamp(cameraMatrix[7],-1,1))/rad : pitch;
-const displayRoll = walking ? Math.atan2(cameraMatrix[1],cameraMatrix[4])/rad : roll;
+updateFlightHud();
+renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);const displayYaw = walking || flight.state ? Math.atan2(cameraMatrix[6],cameraMatrix[8])/rad : yaw;
+const displayPitch = walking || flight.state ? Math.asin(clamp(cameraMatrix[7],-1,1))/rad : pitch;
+const displayRoll = walking || flight.state ? Math.atan2(cameraMatrix[1],cameraMatrix[4])/rad : roll;
 let bearing=(displayYaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(displayPitch>=0?'+':'')+displayPitch.toFixed(1)+'°';$('rollRead').textContent=(displayRoll>=0?'+':'')+displayRoll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}updateQualityHud(now,frameMs);requestAnimationFrame(frame);}
 function updateQualityHud(now, frameMs) {
   if (frameMs > 0 && frameMs < 200 && !document.hidden) {
@@ -1307,6 +1598,7 @@ function updateQualityHud(now, frameMs) {
 
 $('qualityOpen').onclick = () => {
   keys.clear();
+  neutralFlightInput();
   $('qualityDialog').showModal();
   hudUpdatedAt = -Infinity;
   updateQualityHud(performance.now(), 0);

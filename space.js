@@ -58,15 +58,47 @@ const AsteriaSpace = (() => {
     return [center[0] + c*dx + s*dz, y, center[2] - s*dx + c*dz];
   }
 
-  function nearRing(scene, approach, orbit) {
+  function nearRing(scene, approach, orbit, position) {
     const {ring} = scene;
     if (!ring || scene.structure || scene.blackHole) return false;
-    const point = cameraPoint(scene, approach, orbit);
+    const point = position ?? cameraPoint(scene, approach, orbit);
     const delta = point.map((value, axis) => value - center[axis]);
     const normalLength = Math.hypot(...ring.normal);
     const plane = delta.reduce((sum, value, axis) => sum + value * ring.normal[axis], 0) / normalLength;
     const radial = Math.sqrt(Math.max(0, delta.reduce((sum, value) => sum + value * value, 0) - plane * plane));
     return Math.abs(plane) <= .32 && radial >= ring.inner && radial <= ring.outer;
+  }
+
+  function flightBodies(scene, elapsed) {
+    const {spheres} = sample(scene, elapsed, 0);
+    const bodies = [];
+    for (let i=0;i<spheres.length;i+=4) {
+      const radius=spheres[i+3];
+      if (!radius) continue;
+      bodies.push({
+        center:Array.from(spheres.slice(i,i+3)),
+        radius:scene.structure ? Math.max(radius, (scene.ring?.outer ?? radius)*1.18)
+          : scene.belt ? radius*1.36 : radius,
+        label:scene.structure ? '유적' : scene.belt ? '소행성' : i ? '위성' : '주 천체',
+      });
+    }
+    return bodies;
+  }
+
+  function alignments(scene, elapsed, eye) {
+    const {spheres}=sample(scene,elapsed,0);
+    const light=scene.keyLight ?? [-.61,.53,-.59];
+    const norm=v=>v.map(x=>x/(Math.hypot(...v)||1));
+    const unitLight=norm(light);
+    const LOS=center.map((x,i)=>x-eye[i]);
+    const angle=(a,b)=>Math.acos(Math.max(-1,Math.min(1,a.reduce((sum,v,i)=>sum+v*b[i],0))));
+    const horizon=Math.abs(Math.PI/2-angle(norm(LOS),unitLight)) < .42;
+    const lunar=Array.from(spheres.slice(4,7)).map((x,i)=>x-eye[i]);
+    const front= Math.hypot(...lunar)<Math.hypot(...LOS) && angle(norm(LOS),norm(lunar))< Math.PI/2;
+    const angularBody=Math.asin(Math.min(1,(scene.radius ?? 0)/(Math.hypot(...LOS)||1)));
+    const angularMoon=Math.asin(Math.min(1,spheres[7]/(Math.hypot(...lunar)||1)));
+    return {horizon, eclipse:!!scene.moon && angle(norm(lunar),unitLight)<angularMoon,
+      transit:!!scene.moon && front && angle(norm(LOS),norm(lunar))<angularBody+angularMoon};
   }
 
   function lookAtRoute(scene, approach, orbit) {
@@ -350,9 +382,10 @@ void main() {
       activeScene = scene;
     }
 
-    function draw(elapsed, approach, orbit) {
+    function draw(elapsed, approach, orbit, flightEye) {
       const scene = activeScene;
       const position = sample(scene, elapsed, approach, orbit);
+      if (flightEye) position.eye=flightEye;
       const { spheres, eye, spin } = position;
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -382,5 +415,5 @@ void main() {
     return { upload, draw, clear };
   }
 
-  return { scenes, sample, lookAtRoute, nearRing, fragment, bind };
+  return { scenes, sample, cameraPoint, flightBodies, alignments, lookAtRoute, nearRing, fragment, bind };
 })();

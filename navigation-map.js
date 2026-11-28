@@ -47,6 +47,7 @@ const AsteriaNavigationMap = (() => {
     const visitLabel = el('mapVisitState');
     const summary = el('mapSummary');
     const status = el('mapStatus');
+    const localFlight = el('mapLocalFlight');
     const startButton = el('mapTravel');
     const lookup = new Map(destinations.map(([id], index) => [id, index]));
     const storage = {
@@ -268,6 +269,15 @@ const AsteriaNavigationMap = (() => {
     });
 
     return {
+      flightStatus(phase, target, ring, position) {
+        const available=!!position || ['PLAN','ALIGN','LOAD','WARP'].includes(phase);
+        localFlight.hidden=!available;
+        if (!available || !dialog.open) return;
+        const local=position ? ' · 구역 내 '+position.map(n=>n.toFixed(1)).join(' / ')+' SU' : '';
+        const previous=origin===null ? '' : ' · 이전 출발 '+nodes[origin].name;
+        const text='자유 조종 '+phase+' · '+nodes[target].name+local+(ring?' · 고리 경계':'')+previous;
+        if (localFlight.textContent!==text) localFlight.textContent=text;
+      },
       open() {
         if (dialog.open) return;
         mergeVisits();

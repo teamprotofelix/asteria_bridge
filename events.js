@@ -20,8 +20,8 @@ const AsteriaEvents = (() => {
     flare: {
       name: '태양 폭풍', code: 'SOLAR STORM', seconds: 13, load: 22, when: c => c.star,
       requirement: '항성 구역',
-      description: '항성 플레어와 고에너지 입자 흐름을 감지했습니다.',
-      action: ['보호막 보강', '보강 완료. 플레어에 따른 보호막 부하를 줄였습니다.'],
+      description: '넓은 고에너지 입자 흐름을 감지했습니다.',
+      action: ['보호막 보강', '보강 완료. 입자 흐름에 따른 보호막 부하를 줄였습니다.'],
     },
     signal: {
       name: '미확인 신호', code: 'SIGNAL DETECTED', seconds: 16,
@@ -35,12 +35,12 @@ const AsteriaEvents = (() => {
     },
     sunrise: {
       name: '행성 일출', code: 'PLANETARY SUNRISE', seconds: 20, when: c => c.world, requirement: '행성 구역',
-      description: '행성 가장자리로 항성빛이 번집니다.',
+      description: '행성 가장자리로 항성빛이 번집니다. 관측 연출입니다.',
       action: ['분광 기록', '대기층을 통과한 첫 항성빛의 스펙트럼을 기록했습니다.'],
     },
     eclipse: {
       name: '개기일식', code: 'TOTAL ECLIPSE', seconds: 24, when: c => c.moon, requirement: '위성이 있는 행성',
-      description: '위성이 항성의 원반 앞을 가로지릅니다.',
+      description: '위성이 항성의 원반 앞을 가로지릅니다. 관측 연출입니다.',
       action: ['코로나 촬영', '코로나 관측을 시작했습니다. 추적 시간을 5초 연장합니다.'], extension: 5,
     },
     ring: {
@@ -73,6 +73,44 @@ const AsteriaEvents = (() => {
       description: '유적 앞에 간헐적인 공간 왜곡이 형성됩니다.',
       action: ['포탈 공명 분석', '공명 분석을 시작했습니다. 열린 구조를 10초 더 관측합니다.'], extension: 10,
     },
+    sunset: {
+      name:'행성 일몰',code:'PLANETARY SUNSET',seconds:19,when:c=>c.world,requirement:'행성 구역',
+      description:'행성의 밤 경계로 항성빛이 내려갑니다. 관측 연출입니다.',
+      action:['황혼 기록','황혼 방출 스펙트럼을 기록합니다.'], extension:4,
+    },
+    moonTransit: {
+      name:'위성 통과',code:'LUNAR TRANSIT',seconds:21,when:c=>c.moon,requirement:'위성을 보유한 행성',
+      description:'위성 위치를 추적합니다. 궤도에 따른 정렬은 관측 방향에 따라 달라집니다.',
+      action:['궤도 추적','위성 관측 시간을 연장합니다.'], extension:6,
+    },
+    stellarFlare: {
+      name:'항성 플레어',code:'STELLAR FLARE',seconds:11,load:17,when:c=>c.star && c.nearStar,
+      requirement:'항성 접근 항로 55% 이상 또는 자유 조종 근접',
+      description:'항성 가장자리의 국소 분출을 감지했습니다. 안전 거리를 유지하십시오.',
+      action:['항법 제동','현재 속도를 낮추고 보호막에 전력을 배분합니다.'],
+    },
+    pulsar: {
+      name:'펄서 빔',code:'PULSAR SWEEP',seconds:16,load:9,when:c=>c.pulsar,requirement:'THE HUSH 또는 UNDERTOW',
+      description:'원거리 지향성 빔을 센서가 감지했습니다. 가시화 연출입니다.',
+      action:['신호 감쇠','센서를 감쇠해 빔에 따른 보호막 부하를 줄였습니다.'],
+    },
+    nebulaTurbulence: {
+      name:'성운 난기류',code:'NEBULA TURBULENCE',seconds:18,load:8,
+      when:c=>c.nebula,requirement:'NEBULA · THE HUSH · EIRENE · VELARIS',
+      description:'이온화 성운의 밀도 변화로 시야가 흐려집니다.',
+      action:['관측 필터 보정','성운 산란광과 보호막 부하를 줄였습니다.'],
+    },
+    fleet: {
+      name:'함대 조우',code:'FLEET CONTACT',seconds:20,when:c=>c.deep || c.relic,requirement:'심우주 또는 미지 문명',
+      description:'탐사 편대가 통신 범위로 진입합니다. 관측 연출입니다.',
+      action:['통신 채널 열기','상호 식별을 완료하고 편대 관측을 연장합니다.'], extension:7,
+    },
+    docking: {
+      name:'우주 정거장 접안 요청',code:'DOCKING REQUEST',seconds:24,when:c=>c.station,requirement:'HALO GATE 또는 SILENT ARRAY',
+      description:'정거장에서 접근 안내 신호를 수신했습니다. 접안 통신 모의 상황입니다.',
+      action:['대기 승인','대기 위치를 수신했습니다. 함선은 관측 거리를 유지합니다.'], extension:7,
+    },
+
   };
 
   function eligible(type, context) {
@@ -110,7 +148,9 @@ const AsteriaEvents = (() => {
     const animated = state(event, time).progress;
     const p = reduced ? .52 : animated;
     const fade = reduced ? .8 : Math.min(1, p * 6, (1 - p) * 6);
-    const focus = project(.45, .43, 5);
+    const focus = event.type==='moonTransit' && event.position
+      ? project(...event.position) ?? project(.45,.43,5)
+      : project(.45, .43, 5);
     const radius = Math.min(width, height) * .12;
 
     function glow(x, y, size, color, power) {
@@ -147,12 +187,22 @@ const AsteriaEvents = (() => {
       }
       return;
     }
+    if (event.type==='nebulaTurbulence') {
+      const strength=event.responded ? .25 : 1;
+      for (let i=0;i<4;i++) {
+        glow(width*(.2+i*.23),height*(.42+Math.sin(p*6+i)*.26),width*.33,
+          '96,104,177', .37*fade*strength);
+      }
+      return;
+    }
     if (!focus) return;
     const [x, y] = focus;
 
     switch (event.type) {
-      case 'sunrise': {
-        const rise = y + radius * (.64 - p * 1.32);
+      case 'sunrise':
+      case 'sunset': {
+        const lightProgress=event.type==='sunset' ? 1-p : p;
+        const rise = y + radius * (.64 - lightProgress * 1.32);
         glow(x, rise, radius * 2, '255,164,71', .38 * fade);
         disc(x, rise, radius * .49, 'rgba(255,235,180,' + fade + ')');
         disc(x, y + radius * 1.60, radius * 1.75, 'rgba(10,18,30,' + fade + ')');
@@ -165,6 +215,57 @@ const AsteriaEvents = (() => {
         disc(x, y, radius * .56, 'rgba(236,247,255,' + fade + ')');
         disc(lunarX, y, radius * .59, 'rgba(8,12,23,' + fade + ')');
         if (event.responded) ring(x, y, radius * .82, 'rgba(135,216,251,.57)');
+        break;
+      }
+      case 'moonTransit': {
+        const size=Math.max(6,radius*.27);
+        ring(x,y,size,'rgba(189,222,255,'+.8*fade+')',1.4);
+        for (const side of [-1,1]) {
+          ctx.fillStyle='rgba(150,214,233,'+.8*fade+')';
+          ctx.fillRect(x+side*(size+3)-4,y-1,8,2);
+        }
+        if (event.responded) ring(x,y,size*1.22,'rgba(110,255,226,.64)');
+        break;
+      }
+      case 'stellarFlare': {
+        glow(x,y,radius*1.9,'255,131,75',.54*fade*(event.responded?.6:1));
+        for (let i=0;i<5;i++) ring(x-radius*.27*i,y-radius*.2*i,radius*(.3+p*.53+i*.095),
+          'rgba(255,180,102,'+.73*fade+')',2,.42);
+        break;
+      }
+      case 'pulsar': {
+        const a=reduced ? -.54 : -.8+p*1.35;
+        ctx.save();
+        ctx.translate(x,y);
+        ctx.rotate(a);
+        const beam=ctx.createLinearGradient(radius*.12,0,radius*2.8,0);
+        beam.addColorStop(0,'rgba(132,201,255,'+.75*fade*(event.responded?.46:1)+')');
+        beam.addColorStop(1,'rgba(132,201,255,0)');
+        ctx.fillStyle=beam;
+        ctx.beginPath();
+        ctx.moveTo(0,0);ctx.lineTo(radius*2.8,-radius*.53);ctx.lineTo(radius*2.8,radius*.53);
+        ctx.closePath();ctx.fill();
+        ctx.restore();
+        disc(x,y,4,'rgba(218,241,255,'+fade+')');
+        break;
+      }
+      case 'fleet': {
+        for (let i=0;i<6;i++) {
+          const px=x+(p-.52)*radius*2.7+(i%3-1)*radius*.43;
+          const py=y+(i<3?-1:1)*radius*.23+(i%3-1)*radius*.14;
+          const sz=8+i%3*3;
+          ctx.fillStyle='rgba(128,215,224,'+.85*fade+')';
+          ctx.beginPath();
+          ctx.moveTo(px+sz,py);ctx.lineTo(px-sz,py-sz*.32);ctx.lineTo(px-sz*.6,py+sz*.35);
+          ctx.closePath();ctx.fill();
+          disc(px,py,1.8,'rgba(239,255,252,'+fade+')');
+        }
+        break;
+      }
+      case 'docking': {
+        for (let i=0;i<5;i++) ring(x+i*radius*.21,y-i*radius*.095,radius*(.16+i*.1),
+          'rgba(135,242,217,'+fade*(event.responded?.92:.55)+')',1.5,.58);
+        glow(x+radius*.84,y-radius*.38,radius*.8,'84,207,183',.31*fade);
         break;
       }
       case 'distress': {
