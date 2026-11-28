@@ -29,8 +29,8 @@ let seat = null, standingPose = null, stepDistance = 0;
 let nightBridge = false, bridgeAlert = 0, bridgeWarp = 0;
 const safeBridgeEvents = new Set(['meteor','asteroid','flare','ring','dust','stellarFlare','pulsar','nebulaTurbulence']);
 let drawnMariePose = null, lastMarieDraw = 0, crewClockReset = false;
-const watchSeconds = 45;
-const watchRoute = ['nereid', 'gaia', 'halogate', 'nebula', 'cryon', 'helion', 'undertow', 'hush'];
+const watchRoute = ['nereid','gaia','halogate','nebula','cryon','helion','undertow','hush'];
+const defaultWatch={stops:watchRoute.map(sectorId=>({sectorId,seconds:45})),repeat:0,view:'bridge',audio:'inherit'};
 
 let walking = false;
 let walkPosition = [...AsteriaBridge.origin];
@@ -89,6 +89,8 @@ const tourLegs = [
 
 async function loadSky(n, retry = '', signal, mode = qualityMode) {
   const [id] = destinations[n];
+  if (!navigator.onLine && !await persistence.availableOffline(id)) throw Error('Offline sector unavailable');
+  if (signal?.aborted) throw signal.reason;
   const oldScene = AsteriaSpace.scenes[id];
   const legacy = loadImages(urls(oldScene?.fallback ?? id), retry, signal);
   if (!renderer.gpu || mode === 'compatibility') {
@@ -382,7 +384,7 @@ function adaptQuality(now, frameMs) {
 }
 function updateCamera() {
   if (!cameraDirty) return;
-  const orientation = flight.state ? independentView ?? flight.state.orientation : walking ? walkOrientation : AsteriaBridge.orientation(yaw * rad, pitch * rad, roll * rad);
+  const orientation = flight.state ? independentView ?? flight.state.orientation : watchingPose() ?? (walking ? walkOrientation : AsteriaBridge.orientation(yaw * rad, pitch * rad, roll * rad));
   cameraMatrix = AsteriaBridge.matrix(orientation);
   cameraDirty = false;
 }
@@ -427,7 +429,7 @@ function moveInside(dt, inputs = keys) {
 function renderCamera(now, frameMs) {
   if (!ready) return;
   if (renderer.sky.geometry && !reduced && qualityMode === 'auto') adaptQuality(now, frameMs);
-  const angles = flight.state ? [...(independentView ?? flight.state.orientation),...flight.state.position] : walking ? walkOrientation : [yaw, pitch, roll];
+  const angles = watchingPose() ?? (flight.state ? [...(independentView ?? flight.state.orientation),...flight.state.position] : walking ? walkOrientation : [yaw, pitch, roll]);
   const key = [...angles, zoom, w, h, room, revision].join('/');
   const roomFrame = [hatchSlide, nightBridge, !!watch, bridgeWarp, bridgeAlert].join('/');
   const roomPosition = walkPosition.join('/');
@@ -590,6 +592,7 @@ function advanceTour(dt) {
   if (next === tourLegs.length) {
     tour = null;
     $('tourPhase').textContent = '순회 완료';
+    journal('observation');
     updateRouteControls();
     return;
   }
@@ -672,8 +675,19 @@ destinations.forEach(([, , description, , group = 'legacy'], index) => {
 });
 
 let commandEpoch=0;
-const marie = AsteriaMarie.create(destinations, reduced);
+const sectorIds=new Set(destinations.map(([id])=>id));
+const voyage=AsteriaVoyage.create(sectorIds,new Set(Object.keys(events)),{
+  storage:{getItem:k=>localStorage.getItem(k),setItem:(k,v)=>localStorage.setItem(k,v),removeItem:k=>localStorage.removeItem(k)},
+  withLock:navigator.locks ? task=>navigator.locks.request(AsteriaVoyage.key,task) : null,
+  makeId:()=>globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)+'-'+Math.random().toString(36).slice(2),
+});
+window.addEventListener('storage',event=>voyage.reconcile(event.key));
+function journal(kind,sectorId=destinations[dest][0],eventId=null) {
+  void voyage.record(kind,sectorId,elapsed,eventId);
+}
+const marie = AsteriaMarie.create(destinations,reduced,kind=>journal(kind));
 const navigationMap = AsteriaNavigationMap.create(destinations, groups, {
+  voyage,
   select(index) {
     if (loading || warp) return;
     $('destinationSelect').value = String(index);
@@ -701,6 +715,7 @@ $('marieOpen').onclick = () => {
 };
 
 const commandCenter=AsteriaMarieConsole.create(destinations,{
+  purgeVoyageMemory:voyage.purgeMarieCopy,
   snapshot() {
     const [sectorId,sectorName]=destinations[dest];
     return {sectorId,sectorName,ready,epoch:commandEpoch,busy:!!(loading||warp||flightTravel),
@@ -762,6 +777,21 @@ $('marieCommand').onclick=()=>{
 };
 $('watchCommand').onclick=()=>openCommand($('watchCommand'));
 
+const persistence=AsteriaVoyagePanel.create(destinations,events,voyage,{
+  busy:()=>!ready || !!(loading || warp || watch || flightTravel),
+  start(plan) {
+    if (!ready || loading || warp || watch || flightTravel) return false;
+    setCinema(true);
+    startWatch(plan);
+    return true;
+  },
+  restore(index) {
+    if (!ready || loading || warp || watch || flightTravel || index===dest) return false;
+    void restoreSafe(index);
+    return true;
+  },
+  assetPaths:offlineSectorPaths,
+});
 setDest(0);
 let startupAttempt = 0;
 async function startBridge() {
@@ -772,12 +802,22 @@ async function startBridge() {
   $('startupStatus').textContent = '관측창 에셋을 불러오는 중입니다.';
   $('flightStatus').textContent = '관측창 준비 중';
   try {
-    const [sky, images] = await Promise.all([loadSky(0, retry), loadImages(roomURLs, retry)]);
-    uploadSky(sky);
+    const stored=voyage.data.preferences.persist ? voyage.data.safeFlightState?.sectorId : null;
+    let initial=Math.max(0,destinations.findIndex(([id])=>id===stored));
+    const firstSky=loadSky(initial,retry).catch(error=>{
+      if (!initial) throw error;
+      initial=0;
+      notify('저장 구역의 에셋을 사용할 수 없어 네레이드에서 시작합니다.');
+      return loadSky(0,retry);
+    });
+    const [sky,images]=await Promise.all([firstSky,loadImages(roomURLs,retry)]);
+    setDest(initial,sky);
+    navigationMap.select(initial);
     uploadRoom(images);
     ready = true;
     navigationMap.arrive(dest);
     marie.arrive(dest);
+    journal('arrival');
     $('marieOpen').disabled = false;
     $('mapOpen').disabled = false;
     $('qualityOpen').disabled = false;
@@ -797,6 +837,7 @@ async function startBridge() {
     updateWatchControls();
     updateWalkControls();
     updateRouteControls();
+    persistence.refresh();
   }
 }
 $('retryStartup').addEventListener('click', startBridge);
@@ -895,45 +936,113 @@ function updateWatchControls() {
   $('watchStart').disabled = !ready || loading || !!warp;
   $('watchNext').hidden = !watch;
   $('watchNext').disabled = loading || !!warp;
+  $('watchPause').hidden = !watch;
+  $('watchPause').textContent = watch?.paused ? '재개' : '일시정지';
+  $('watchEditor').hidden = !!watch;
+  $('watchSound').disabled = watch?.route.audio==='mute';
   $('exitCinema').textContent = watch ? '자동 관측 종료' : '▣ 함교 조작 복귀';
+  updateWatchReadout();
 }
-
-function startWatch() {
+function updateWatchReadout() {
+  const text=!watch ? '' : watch.failures>=2 && watch.paused ? '로드 실패 · 재개로 재시도하거나 다음 구역으로 건너뛰기'
+    : watch.paused ? '일시정지' : loading ? '구역 준비 중' : warp ? '워프 진행 중'
+      : '다음 구역까지 '+Math.max(0,Math.ceil(watch.remaining))+'초';
+  if ($('watchStatus').textContent!==text) $('watchStatus').textContent=text;
+}
+function watchingPose() {
+  const place=watch && AsteriaInterior.seats[watch.route.view];
+  return place && room && renderer.room.interior ? AsteriaBridge.orientation(place.heading,0,0) : null;
+}
+function watchPreset() {
+  if (!watch) return;
+  const place=AsteriaInterior.seats[watch.route.view];
+  walkPosition=place && renderer.room.interior ? [...place.eye] : [...AsteriaBridge.origin];
+  setRoom(watch.route.view!=='exterior');
+  cameraDirty=true;
+  revision++;
+}
+function startWatch(plan=defaultWatch) {
   if (!cinema || !ready || loading || warp || watch) return;
   stopRoute();
   if (event) endEvent();
-  const prior = {auto, room};
-  watch = {prior, index: watchRoute.indexOf(destinations[dest][0]), remaining: watchSeconds};
+  const prior={auto,room};
+  watch={...AsteriaWatch.create(plan,destinations[dest][0],plan===defaultWatch),prior};
   setAuto(false);
-  setRoom(true);
+  watchPreset();
   updateWatchControls();
   updateAudio();
-  $('exitCinema').focus({preventScroll: true});
+  $('exitCinema').focus({preventScroll:true});
 }
-
 function stopWatch() {
   assetRequest?.abort();
-  const {prior} = watch;
-  watch = null;
+  const {prior}=watch;
+  watch=null;
+  walkPosition=[...AsteriaBridge.origin];
+  cameraDirty=true;
+  revision++;
   setAuto(prior.auto);
   setRoom(prior.room);
   updateAudio();
 }
-
+function settleObservation(session,leg) {
+  AsteriaWatch.arrive(session,leg);
+  session.pendingLeg=null;
+  watchPreset();
+  journal('observation',leg.sectorId);
+  updateWatchControls();
+}
 function advanceWatch(dt) {
-  if (!watch || loading || warp || document.hidden) return;
-  watch.remaining -= watch.skipFrame ? 0 : dt;
-  watch.skipFrame = false;
-  if (watch.remaining > 0) return;
-  const session = watch;
-  session.index = (session.index + 1) % watchRoute.length;
-  session.remaining = watchSeconds;
-  const candidate = destinations.findIndex(([id]) => id === watchRoute[session.index]);
-  void engage(candidate, session);
+  if (!watch || watch.paused || loading || warp || document.hidden) return;
+  watch.remaining-=watch.skipFrame ? 0 : dt;
+  watch.skipFrame=false;
+  if (watch.remaining>0) {updateWatchReadout();return;}
+  const session=watch;
+  const leg=AsteriaWatch.candidate(session);
+  if (!leg) {
+    setCinema(false);
+    notify('지정한 자동 관측을 마쳤습니다.');
+    return;
+  }
+  if (leg.sectorId===destinations[dest][0]) settleObservation(session,leg);
+  else {
+    session.pendingLeg=leg;
+    void engage(destinations.findIndex(([id])=>id===leg.sectorId),session);
+  }
+}
+function offlineSectorPaths(id) {
+  const scene=AsteriaSpace.scenes[id];
+  const paths=urls(scene?.fallback ?? id);
+  if (scene) {
+    paths.push(...urls(scene.background ?? 'deep'));
+    if (scene.surface) paths.push(base+scene.surface+'-4k.webp');
+  }
+  return [...new Set(paths)];
+}
+async function restoreSafe(index) {
+  loading=true;
+  setTravelBusy(true);
+  try {
+    const sky=await loadSky(index);
+    endEvent();
+    setPilot(false);
+    setWalking(false);
+    setDest(index,sky);
+    reset();
+    navigationMap.select(index);
+    navigationMap.arrive(index);
+    marie.arrive(index);
+    journal('arrival');
+    notify('저장된 관측 구역을 열었습니다.');
+  } catch {
+    notify('저장 구역을 열 수 없습니다. 현재 구역을 유지합니다.');
+  } finally {
+    loading=false;
+    setTravelBusy(false);
+  }
 }
 
 function updateAudio() {
-  soundscape.mix({throttle, warp: audioWarp, ambient: !!watch, hidden: document.hidden,
+  soundscape.mix({throttle, warp: audioWarp, ambient: !!watch, hidden: document.hidden || watch?.route.audio==='mute' || !!watch?.paused,
     listener: walkPosition, right: Array.from(cameraMatrix.slice(0, 3)),
     volume: Number($('bridgeVolume').value) / 100});
 }
@@ -1307,6 +1416,7 @@ function setTravelBusy(busy) {
   updateWalkControls();
   updateRouteControls();
   updateWatchControls();
+  persistence.refresh();
 }
 
 async function engage(n = null, session = null, plan = null) {
@@ -1335,7 +1445,9 @@ async function engage(n = null, session = null, plan = null) {
       plan.phase='WARP';
       setPilot(false);
     }
-    warp = {start: performance.now(), next: n, changed: false, images, plan};
+    warp = {start: performance.now(), next: n, changed: false, images, plan,
+      watch:session,leg:session?.pendingLeg};
+    journal('departure');
     audioWarp = 0;
     navigationMap.begin(n);
     marie.depart(n);
@@ -1346,7 +1458,14 @@ async function engage(n = null, session = null, plan = null) {
     if (!watch) notify(n === null ? '워프 드라이브 가동' : destinations[n][1] + ' 항로 설정 · 워프 개시');
   } catch {
     if (!request.signal.aborted && (!session || watch === session)) {
-      const message = '목적지 이미지 로드 실패. 현재 구역 유지.';
+      const message = navigator.onLine ? '목적지 이미지 로드 실패. 현재 구역 유지.'
+        : '오프라인에 없는 구역입니다. 현재 구역을 유지합니다.';
+      if (session) {
+        session.failures++;
+        session.remaining=1.5;
+        if (session.failures>=2) session.paused=true;
+        updateAudio();
+      }
       navigationMap.fail(message);
       marie.failed();
       notify(message);
@@ -1376,11 +1495,13 @@ function advanceWarp(now) {
   }
   if (p < 1) return reduced ? 0 : clamp(Math.min(p*5, (1-p)*4), 0, 1);
 
-  const plan=warp.plan;
+  const {plan,watch:session,leg}=warp;
   warp = null;
   audioWarp = null;
   navigationMap.arrive(dest);
   marie.arrive(dest);
+  journal('arrival');
+  if (session && watch===session && leg) settleObservation(session,leg);
   if (plan && plan===flightTravel) {
     plan.phase='ARRIVE';
     flightTravel=null;
@@ -1453,6 +1574,7 @@ function startEvent(type, context = eventContext()) {
   if (event) endEvent(false);
   event = next;
   commandEpoch++;
+  journal('event',destinations[dest][0],type);
   marie.event(type);
   const entry = events[type];
   $('eventName').textContent = entry.name;
@@ -1526,14 +1648,31 @@ function updateEvents() {
 }
 $('travel').onclick=()=>engage(+$('destinationSelect').value);$('warp').onclick=()=>engage();$('speed').oninput=e=>{throttle=+e.target.value;updateSpeed();updateAudio();};$('autopilot').onclick=()=>{if(tour)stopRoute();cancelFlightTravel();setPilot(false);setWalking(false);setAuto(!auto);};$('walkToggle').onclick=()=>{setWalking(!walking);$('view').focus({preventScroll:true});};$('reset').onclick=reset;$('cinema').onclick=()=>setCinema(true);$('exitCinema').onclick=()=>setCinema(false);$('roomToggle').onclick=()=>setRoom(!room);$('eventBtn').onclick=()=>startEvent($('eventSelect').value);$('randomEvent').onclick=()=>{random=!random;nextEvent=elapsed+6;$('randomEvent').textContent='자동 상황 '+(random?'ON':'OFF');$('randomEvent').setAttribute('aria-pressed',String(random));};$('help').onclick=()=>$('helpDialog').showModal();$('closeHelp').onclick=()=>$('helpDialog').close();$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{notify('전체 화면을 지원하지 않거나 차단되었습니다.');}};
 $('sound').onclick = $('watchSound').onclick = toggleSound;
-$('watchStart').onclick = startWatch;
-$('watchNext').onclick = () => {
-  if (watch) watch.remaining = 0;
+$('watchStart').onclick=()=>startWatch();
+$('watchNext').onclick=()=>{
+  if (!watch) return;
+  if (watch.paused && watch.failures>=2 && watch.pendingLeg) {
+    AsteriaWatch.arrive(watch,watch.pendingLeg);
+    watch.pendingLeg=null;
+  }
+  watch.paused=false;
+  watch.remaining=0;
+  watch.skipFrame=true;
+  updateWatchControls();
+  updateAudio();
+};
+$('watchPause').onclick=()=>{
+  if (!watch) return;
+  watch.paused=!watch.paused;
+  if (watch.paused && loading && watch.pendingLeg) assetRequest?.abort();
+  if (!watch.paused) {watch.failures=0;watch.skipFrame=true;}
+  updateWatchControls();
+  updateAudio();
 };
 const view=$('view');view.addEventListener('pointerdown',e=>{if(e.button!==0)return;setAuto(false);view.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,id:e.pointerId};view.setPointerCapture(e.pointerId);});view.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;turnView(-(e.clientX-drag.x)*.19,(e.clientY-drag.y)*.19);drag.x=e.clientX;drag.y=e.clientY;});for(let ev of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(ev,()=>drag=null);view.addEventListener('dblclick',reset);view.addEventListener('wheel',e=>{e.preventDefault();zoomBy(-Math.sign(e.deltaY)*.08);},{passive:false});
 const map={arrowup:'w',arrowdown:'s',arrowleft:'a',arrowright:'d'}, editable=el=>el&&['INPUT','SELECT','TEXTAREA'].includes(el.tagName);
 window.addEventListener('keydown', e => {
-  if ($('mapDialog').open || $('marieDialog').open || $('commandDialog').open || $('qualityDialog').open) return;
+  if ($('mapDialog').open || $('marieDialog').open || $('commandDialog').open || $('qualityDialog').open || $('voyageDialog').open) return;
   if (e.key==='Escape' && flightTravel) {
     cancelFlightTravel();
     return;

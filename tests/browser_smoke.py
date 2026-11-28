@@ -16,7 +16,7 @@ class QuietHandler(SimpleHTTPRequestHandler):
 
 def boot(browser, url, mode, *, mobile=False, disable_gpu=False, reduced_motion="reduce"):
     viewport = {"width": 390, "height": 844} if mobile else {"width": 1440, "height": 900}
-    page = browser.new_page(
+    page = browser.new_page(service_workers="block",
         viewport=viewport, is_mobile=mobile, has_touch=mobile, reduced_motion=reduced_motion,
     )
     errors = []
@@ -252,7 +252,7 @@ def test_bridge_walk(browser, url):
 
 
 def test_bridge_mesh_fallback(browser, url):
-    page = browser.new_page(reduced_motion="reduce")
+    page = browser.new_page(service_workers="block", reduced_motion="reduce")
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.add_init_script("""
@@ -354,7 +354,7 @@ def test_expanded_sectors(browser, url):
 
 
 def test_animated_tour(browser, url):
-    page = browser.new_page(viewport={"width": 780, "height": 580})
+    page = browser.new_page(service_workers="block", viewport={"width": 780, "height": 580})
     page.add_init_script("""
         let pending, now = performance.now();
         window.requestAnimationFrame = callback => { pending = callback; };
@@ -432,6 +432,11 @@ def test_dynamic_events(browser, url):
 
 def test_navigation_map(browser, url):
     page, errors = boot(browser, url, "RENDER / WEBGL 3D")
+    page.click("#voyageOpen")
+    page.locator('[data-voyage="storage"] summary').click()
+    page.locator("#voyageConsent").check()
+    expect(page.locator("#voyageStorageStatus")).to_have_text("이 브라우저에 저장 중")
+    page.click("#voyageClose")
     opener = page.locator("#mapOpen")
     dialog = page.locator("#mapDialog")
     opener.click()
@@ -479,11 +484,12 @@ def test_navigation_map(browser, url):
 
     page.reload()
     expect(page.locator("#renderMode")).to_have_text("RENDER / WEBGL 3D", timeout=20_000)
-    page.select_option("#destinationSelect", "27")
+    expect(page.locator("#destinationName")).to_have_text("HALO GATE")
+    page.select_option("#destinationSelect", "0")
     opener.click()
-    expect(page.locator("#mapSelected")).to_have_text("HALO GATE")
+    expect(page.locator("#mapSelected")).to_have_text("NEREID")
     expect(page.locator("#mapVisitState")).to_have_text("방문 완료")
-    expect(page.locator("#mapCurrent")).to_have_text("NEREID")
+    expect(page.locator("#mapCurrent")).to_have_text("HALO GATE")
     assert not errors, errors
     page.close()
 
@@ -506,7 +512,7 @@ def test_navigation_map_mobile(browser, url):
 
 
 def test_bridge_audio(browser, url):
-    page = browser.new_page(reduced_motion="reduce")
+    page = browser.new_page(service_workers="block", reduced_motion="reduce")
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.add_init_script("""
@@ -581,7 +587,7 @@ def test_bridge_audio(browser, url):
 
 
 def test_automatic_observation(browser, url):
-    page = browser.new_page(
+    page = browser.new_page(service_workers="block",
         viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, reduced_motion="reduce",
     )
     errors = []
@@ -641,7 +647,7 @@ def test_automatic_observation(browser, url):
 
 
 def test_marie_bridge(browser, url):
-    page = browser.new_page(viewport={"width": 780, "height": 580})
+    page = browser.new_page(service_workers="block", viewport={"width": 780, "height": 580})
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.add_init_script("""
@@ -752,7 +758,7 @@ def test_fallbacks(browser, url):
     assert not errors, errors
     page.close()
 
-    page = browser.new_page(reduced_motion="reduce")
+    page = browser.new_page(service_workers="block", reduced_motion="reduce")
     page.route("**/gas-4k.webp", lambda route: route.abort())
     page.route("**/nereid-surface.webp", lambda route: route.abort())
     page.goto(url)
@@ -766,7 +772,7 @@ def test_fallbacks(browser, url):
 
 def test_upload_failure(browser, url):
     for target in ("surface", "room", "destination"):
-        page = browser.new_page(reduced_motion="reduce")
+        page = browser.new_page(service_workers="block", reduced_motion="reduce")
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.add_init_script("""
@@ -809,7 +815,7 @@ def test_upload_failure(browser, url):
 
 
 def test_startup_retry(browser, url):
-    page = browser.new_page(reduced_motion="reduce")
+    page = browser.new_page(service_workers="block", reduced_motion="reduce")
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     attempts = []
@@ -839,7 +845,7 @@ def test_startup_retry(browser, url):
 
 
 def test_adaptive_quality(browser, url):
-    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page = browser.new_page(service_workers="block", viewport={"width": 1440, "height": 900})
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.add_init_script("""

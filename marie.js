@@ -19,7 +19,7 @@ const AsteriaMarie = (() => {
     nebulaTurbulence: '성운 난기류 감지. 관측 필터 보정을 권장합니다.',
   };
 
-  function create(sectors, reduced) {
+  function create(sectors, reduced, log = ()=>{}) {
     const el = id => document.getElementById(id);
     const dialog = el('marieDialog');
     const activity = el('marieActivity');
@@ -85,6 +85,7 @@ const AsteriaMarie = (() => {
         tea=null;
         teaAt=clock+teaInterval;
         report='차를 올려두었습니다. 물 온도 확인 완료.';
+        log('tea');
       } else {
         if (tea) return tea.phase==='ready' ? '차가 준비되었습니다. 차 받기를 요청하십시오.' : '이미 차를 준비 중입니다.';
         prepareTea();
@@ -202,6 +203,7 @@ const AsteriaMarie = (() => {
           drone.elapsed+=dt;
           if (drone.elapsed>=5) {
             drone.phase='done';
+            log('drone');
             report=name(current) + ' 조사 완료. 모의 데이터: 반복 신호 방위 024°, 주기 7.2초. 발신원 분류는 보류합니다.';
           }
         } else if (order.state === 'PREPARE_TEA') {

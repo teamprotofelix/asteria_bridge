@@ -100,15 +100,23 @@ const AsteriaCommand = (() => {
 
   function preferences(sectors,storage) {
     let saved=null, consent=false;
-    try {
+    function readConsent() {
       const item=JSON.parse(storage.getItem(preferenceKey) || 'null');
       if (item?.version===1 && item.consent===true) {
         consent=true;
-        if (sectors.some(([id])=>id===item.sectorId)) saved=item.sectorId;
+        saved=sectors.some(([id])=>id===item.sectorId) ? item.sectorId : null;
+      } else if (consent) {
+        // A different tab revoked consent. Discard the value loaded under that consent.
+        saved=null;
+        consent=false;
       }
-    } catch {
-      // A blocked store still permits in-session memory.
     }
+    function reconcile() {
+      try {readConsent();} catch {
+        // A blocked store still permits in-session memory.
+      }
+    }
+    reconcile();
     const write=(sectorId,enabled)=>{
       storage.setItem(preferenceKey,JSON.stringify({version:1,consent:enabled,sectorId}));
     };
@@ -117,6 +125,7 @@ const AsteriaCommand = (() => {
       get sectorId() {return saved;},
       setConsent(enabled) {
         try {
+          if (enabled && consent) readConsent();
           if (enabled) write(saved,true);
           else storage.removeItem(preferenceKey);
           consent=enabled;
@@ -125,9 +134,12 @@ const AsteriaCommand = (() => {
       },
       set(sectorId) {
         if (!sectors.some(([id])=>id===sectorId)) return false;
+        try {readConsent();} catch {if (consent) return false;}
+        if (consent) {
+          try {write(sectorId,true);} catch {return false;}
+        }
         saved=sectorId;
-        if (!consent) return true;
-        try {write(saved,true);return true;} catch {return false;}
+        return true;
       },
       clear() {
         try {storage.removeItem(preferenceKey);} catch {return false;}
@@ -135,11 +147,12 @@ const AsteriaCommand = (() => {
         consent=false;
         return true;
       },
+      reconcile,
       export() {return {version:1,consent,sectorId:saved};},
     };
   }
 
-  return {parse,validate,blocked,preferences,requiresApproval,maxText};
+  return {parse,validate,blocked,preferences,preferenceKey,requiresApproval,maxText};
 })();
 
 if (typeof module==='object' && module.exports) module.exports=AsteriaCommand;

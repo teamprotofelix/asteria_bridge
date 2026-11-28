@@ -22,7 +22,7 @@ class Quiet(SimpleHTTPRequestHandler):
 
 
 def collect(browser, url, wanted, modern):
-    page = browser.new_page(viewport={'width':780,'height':580}, reduced_motion='reduce')
+    page = browser.new_page(service_workers="block", viewport={'width':780,'height':580}, reduced_motion='reduce')
     errors = []
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.add_init_script("""
@@ -102,7 +102,7 @@ def main():
             perf = {}
             for width,height in [(1440,900),(390,844)]:
                 mobile = width < 700
-                page = browser.new_page(viewport={'width':width,'height':height},is_mobile=mobile,has_touch=mobile)
+                page = browser.new_page(service_workers="block", viewport={'width':width,'height':height},is_mobile=mobile,has_touch=mobile)
                 page.goto(f'{prefix}/{ROOT.name}/')
                 expect(page.locator('#renderMode')).to_have_text('RENDER / WEBGL 3D',timeout=25000)
                 page.click('#qualityOpen')

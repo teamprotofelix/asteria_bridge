@@ -125,3 +125,34 @@ test('429 respects backoff, timeout cancels fetch, and explicit cancellation doe
   user.abort(Error('cancelled'));
   await assert.rejects(complete,/cancelled/);
 });
+
+test('a stale tab cannot persist a preference after another tab revokes consent',()=>{
+  const cache=new Map();
+  const storage={getItem:key=>cache.get(key),setItem:(k,v)=>cache.set(k,v),removeItem:k=>cache.delete(k)};
+  const first=command.preferences(sectors,storage);
+  assert.ok(first.set('gaia'));
+  assert.ok(first.setConsent(true));
+  const stale=command.preferences(sectors,storage);
+  assert.ok(stale.consent);
+  assert.ok(first.setConsent(false));
+  assert.ok(stale.set('halogate'));
+  assert.equal(stale.consent,false);
+  assert.equal(stale.sectorId,'halogate');
+  assert.equal(cache.size,0);
+  assert.equal(command.preferences(sectors,storage).sectorId,null);
+});
+
+test('a failed Marie write or removal does not report a changed stored preference',()=>{
+  const cache=new Map();
+  let blocked=false;
+  const storage={getItem:key=>cache.get(key),setItem(k,v){if(blocked)throw Error();cache.set(k,v);},
+    removeItem(k){if(blocked)throw Error();cache.delete(k);}};
+  const pref=command.preferences(sectors,storage);
+  assert.ok(pref.set('gaia'));
+  assert.ok(pref.setConsent(true));
+  blocked=true;
+  assert.equal(pref.set('selene'),false);
+  assert.equal(pref.setConsent(false),false);
+  assert.equal(pref.clear(),false);
+  assert.deepEqual(pref.export(),{version:1,consent:true,sectorId:'gaia'});
+});

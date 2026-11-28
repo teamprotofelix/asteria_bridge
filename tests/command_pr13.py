@@ -11,7 +11,7 @@ KEY = "asteria.marie.preferences.v1"
 
 
 def begin(browser, url, mobile=False):
-    page = browser.new_page(
+    page = browser.new_page(service_workers="block",
         viewport={"width": 390, "height": 844} if mobile else {"width": 960, "height": 710},
         is_mobile=mobile, has_touch=mobile, reduced_motion="reduce",
     )
@@ -116,6 +116,7 @@ def offline_mobile(browser,url):
     page.screenshot(path=OUTPUT/"canvas-mobile.png")
     page.locator("#commandSettings summary").tap()
     page.locator("#commandRemember").check()
+    expect(page.locator("#commandFeedback")).to_contain_text("저장을 켰습니다")
     stored=page.evaluate("(k)=>JSON.parse(localStorage.getItem(k))",KEY)
     assert stored=={"version":1,"consent":True,"sectorId":"halogate"}
     with page.expect_download() as exported:
@@ -124,6 +125,7 @@ def offline_mobile(browser,url):
     assert json.loads(exported.value.path().read_text())==stored
     expect(page.locator("#commandExportData")).to_contain_text("halogate")
     page.locator("#commandClear").tap()
+    expect(page.locator("#commandFeedback")).to_contain_text("저장 동의를 삭제했습니다")
     assert page.evaluate("(k)=>localStorage.getItem(k)",KEY) is None
     expect(page.locator("#commandRemember")).not_to_be_checked()
     assert not errors, errors

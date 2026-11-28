@@ -1,7 +1,6 @@
 'use strict';
 
 const AsteriaNavigationMap = (() => {
-  const storageKey = 'asteria.visited-sectors.v1';
   const coordinates = {
     nereid: [-.20, -.03, .16], selene: [.12, -.03, -.15], eos: [-.02, .25, .22],
     deep: [-.31, -.32, -.45], gaia: [.22, .29, .06], solaris: [-.47, .22, -.16],
@@ -17,24 +16,7 @@ const AsteriaNavigationMap = (() => {
     palimpsest: [.28, -.60, -.29], mirrorward: [.90, -.65, -.08],
   };
 
-  function readVisits(storage, sectors) {
-    try {
-      const records = JSON.parse(storage.getItem(storageKey));
-      return new Set(Array.isArray(records) ? records.filter(id => sectors.has(id)) : []);
-    } catch {
-      return new Set();
-    }
-  }
-
-  function writeVisits(storage, visits) {
-    try {
-      storage.setItem(storageKey, JSON.stringify([...visits]));
-    } catch {
-      // The map still records arrivals in this tab when browser storage is blocked.
-    }
-  }
-
-  function create(destinations, groups, {select, travel}) {
+  function create(destinations, groups, {select, travel, voyage}) {
     const el = id => document.getElementById(id);
     const dialog = el('mapDialog');
     const canvas = el('mapCanvas');
@@ -49,12 +31,7 @@ const AsteriaNavigationMap = (() => {
     const status = el('mapStatus');
     const localFlight = el('mapLocalFlight');
     const startButton = el('mapTravel');
-    const lookup = new Map(destinations.map(([id], index) => [id, index]));
-    const storage = {
-      getItem: key => window.localStorage.getItem(key),
-      setItem: (key, value) => window.localStorage.setItem(key, value),
-    };
-    const visited = readVisits(storage, lookup);
+    const visited=()=>new Set(voyage.data.visitedSectorIds);
     const nodes = destinations.map(([id, name, , code, group = 'legacy'], index) => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -76,12 +53,13 @@ const AsteriaNavigationMap = (() => {
     function renderDetails() {
       if (!dialog.open) return;
       const destination = destinations[selected];
+      const visits = visited();
       currentLabel.textContent = transit ? destinations[transit.from][1] : destinations[current][1];
       selectedLabel.textContent = destination[1];
       el('mapDescription').textContent = destination[2] + ' · ' + destination[3];
       visitLabel.textContent = current === selected && !transit ? '현재 구역'
-        : visited.has(destination[0]) ? '방문 완료' : '미탐사';
-      summary.textContent = `${visited.size} / ${destinations.length} 방문`;
+        : visits.has(destination[0]) ? '방문 완료' : '미탐사';
+      summary.textContent = `${visits.size} / ${destinations.length} 방문`;
       startButton.disabled = busy || selected === current;
       status.textContent = failure || (transit ? '워프 이동 중 · ' + destinations[transit.to][1]
         : busy ? '항로 계산 중' : selected === current ? '현재 구역입니다.' : '예정 항로를 확인하고 워프를 시작하세요.');
@@ -90,10 +68,10 @@ const AsteriaNavigationMap = (() => {
       nodes.forEach(({id, button, group, name, code}, index) => {
         button.hidden = filter.value !== 'all' && filter.value !== group && index !== current && index !== selected
           && index !== transit?.from && index !== transit?.to;
-        button.classList.toggle('visited', visited.has(id));
+        button.classList.toggle('visited', visits.has(id));
         button.setAttribute('aria-pressed', String(index === selected));
         button.setAttribute('aria-current', index === current && !transit ? 'location' : 'false');
-        const location = index === current && !transit ? '현재 구역' : visited.has(id) ? '방문 완료' : '미탐사';
+        const location = index === current && !transit ? '현재 구역' : visits.has(id) ? '방문 완료' : '미탐사';
         button.setAttribute('aria-label', `${name} · ${code} · ${location}`);
       });
       scheduleDraw();
@@ -258,18 +236,10 @@ const AsteriaNavigationMap = (() => {
     if (window.ResizeObserver) new ResizeObserver(scheduleDraw).observe(plot);
     else window.addEventListener('resize', scheduleDraw);
 
-    function mergeVisits() {
-      for (const id of readVisits(storage, lookup)) visited.add(id);
-    }
-
-    window.addEventListener('storage', event => {
-      if (event.key !== storageKey) return;
-      mergeVisits();
-      renderDetails();
-    });
+    voyage.subscribe(renderDetails);
 
     return {
-      visits:()=>Array.from(visited),
+      visits:()=>voyage.data.visitedSectorIds.slice(),
       flightStatus(phase, target, ring, position) {
         const available=!!position || ['PLAN','ALIGN','LOAD','WARP'].includes(phase);
         localFlight.hidden=!available;
@@ -281,7 +251,6 @@ const AsteriaNavigationMap = (() => {
       },
       open() {
         if (dialog.open) return;
-        mergeVisits();
         dialog.showModal();
         renderDetails();
       },
@@ -314,12 +283,6 @@ const AsteriaNavigationMap = (() => {
         if (index !== current) origin = current;
         current = index;
         transit = null;
-        const [id] = destinations[index];
-        mergeVisits();
-        if (!visited.has(id)) {
-          visited.add(id);
-          writeVisits(storage, visited);
-        }
         renderDetails();
       },
     };

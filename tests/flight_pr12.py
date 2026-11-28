@@ -1,5 +1,6 @@
 """Free flight and the 21-event catalog through a real static HTTP origin."""
 import os
+from base64 import b64decode
 from pathlib import Path
 
 from browser_smoke import ROOT, QuietHandler, Thread, ThreadingHTTPServer, expect, partial, sync_playwright
@@ -29,6 +30,16 @@ def advance(page, frames=1, milliseconds=100):
     page.evaluate("([frames,ms]) => flightFrames(frames,ms)", [frames, milliseconds])
 
 
+def capture(page, name):
+    # The test owns requestAnimationFrame; capture the already composed viewport directly.
+    session=page.context.new_cdp_session(page)
+    try:
+        still=session.send("Page.captureScreenshot",{"format":"png","fromSurface":False})
+        (OUTPUT/name).write_bytes(b64decode(still["data"]))
+    finally:
+        session.detach()
+
+
 def hold(page, key, frames=13):
     page.keyboard.down(key)
     advance(page, frames)
@@ -37,7 +48,7 @@ def hold(page, key, frames=13):
 
 
 def boot(browser, url, *, mobile=False):
-    page = browser.new_page(viewport={"width": 390, "height": 844} if mobile else {"width": 960, "height": 650},
+    page = browser.new_page(service_workers="block", viewport={"width": 390, "height": 844} if mobile else {"width": 960, "height": 650},
                             is_mobile=mobile, has_touch=mobile, reduced_motion="reduce")
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
@@ -67,7 +78,7 @@ def pilot(browser, url):
     hold(page, "i")
     moved = eye(page)
     assert moved[2] > start[2] + .5
-    page.screenshot(path=OUTPUT / "pilot-desktop.png")
+    capture(page,"pilot-desktop.png")
 
     page.click("#flightCamera")
     advance(page)
@@ -101,7 +112,7 @@ def pilot(browser, url):
     page.click("#mapOpen")
     advance(page)
     expect(page.locator("#mapLocalFlight")).to_contain_text("NEREID")
-    page.screenshot(path=OUTPUT / "pilot-map.png")
+    capture(page,"pilot-map.png")
     page.click("#mapClose")
     hold(page,"i",100)
     expect(page.locator("#flightAssist")).to_have_value("IDLE")
@@ -164,7 +175,9 @@ def voyage(browser,url):
     expect(page.locator("#destinationName")).to_have_text("GAIA")
     expect(page.locator("#flightReadout")).to_contain_text("GAIA")
     expect(page.locator("#flightAssist")).to_have_value("APPROACH")
-    assert "gaia" in page.evaluate("JSON.parse(localStorage.getItem('asteria.visited-sectors.v1'))")
+    page.click("#mapOpen")
+    advance(page)
+    expect(page.locator('#mapNodes [data-sector="gaia"]')).to_have_attribute("aria-current","location")
     assert not errors, errors
     page.close()
 
@@ -196,7 +209,7 @@ def events(browser,url):
         page.click("#eventBtn")
         expect(page.locator("#eventName")).to_have_text(title)
         advance(page)
-        page.screenshot(path=OUTPUT / (value+".png"))
+        capture(page,value+".png")
         page.click("#eventAction")
         expect(page.locator("#eventAction")).to_be_hidden()
         page.click("#eventDismiss")
@@ -221,10 +234,15 @@ def mobile(browser,url):
     advance(page,8)
     touch.send("Input.dispatchTouchEvent",{"type":"touchEnd","touchPoints":[]})
     assert eye(page)[2]>initial[2]+.2
-    page.screenshot(path=OUTPUT / "pilot-mobile.png")
+    capture(page,"pilot-mobile.png")
     # The synthesized swipe can suppress the next immediate mobile click.
-    page.wait_for_timeout(400)
-    page.locator("#flightExit").tap()
+    touch.detach()
+    page.wait_for_timeout(650)
+    exit_button=page.locator("#flightExit")
+    exit_button.tap()
+    # Chromium can suppress the first compatibility click after a CDP drag.
+    if exit_button.is_visible():
+        exit_button.tap()
     expect(page.locator("#viewMode")).to_have_text("MANUAL")
     assert not errors, errors
     page.close()
