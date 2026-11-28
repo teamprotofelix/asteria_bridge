@@ -25,5 +25,5 @@
 ## 검증 재현
 
 - `node --test tests/*.test.js`: 레거시 가져오기, 손상/과대/부적합 백업, 저장 한도, 동시 탭 처리 및 순회 정책.
-- `python tests/voyage_pr14.py`: Chromium 실제 정적 HTTP에서 동의·백업·다중 탭, 맞춤 항로 및 실패, 설치 매니페스트·업데이트·오프라인 기본/추가 구역. GitHub Actions의 `voyage-pr14-captures`에 캡처를 저장합니다.
+- `python tests/voyage_pr14.py`: Chromium 실제 정적 HTTP에서 동의·백업·다중 탭, 세 가지 맞춤 항로 및 실패, 설치 매니페스트·업데이트·오프라인 기본/추가 구역. GitHub Actions의 `voyage-pr14-captures`에 캡처를 저장합니다.
 - 실제 모바일 홈 화면 설치, 실기기 GPU와 실제 벽시계 30분 연속 관측은 미검증입니다.

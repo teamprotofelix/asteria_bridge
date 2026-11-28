@@ -147,6 +147,29 @@ def custom(browser,url):
     expect(page.locator("#marieOpen")).to_be_enabled(timeout=22000)
     expect(page.locator("#destinationName")).to_have_text("NEREID")
     expect(page.locator("#exitCinema")).to_be_hidden()
+
+    # Two additional custom plans independently exercise finite repeats and explicit termination.
+    for view, repeat, duration in [("exterior","2",30),("lounge","0",45)]:
+        page.click("#cinema")
+        page.click("#watchEditor")
+        rows=page.locator("#voyageStops li")
+        while rows.count()>1:
+            rows.last.get_by_role("button", name="삭제").click()
+        rows.first.locator("select").select_option("nereid")
+        rows.first.locator("input").fill(str(duration))
+        page.select_option("#voyageView",view)
+        page.locator("#voyageRepeat").fill(repeat)
+        page.click("#voyageStart")
+        advance(page,1,1000)
+        expect(page.locator("#watchStatus")).to_contain_text(str(duration)+"초")
+        expect(page.locator("#roomToggle")).to_have_text("함교 OFF" if view=="exterior" else "함교 ON")
+        advance(page,duration,1000)
+        expect(page.locator("#exitCinema")).to_be_visible()
+        if repeat=="2":
+            advance(page,duration,1000)
+        else:
+            page.click("#exitCinema")
+        expect(page.locator("#exitCinema")).to_be_hidden()
     assert not errors,errors
     page.close()
 
@@ -220,7 +243,7 @@ def main():
                 storage(browser,url)
                 print("PASS: legacy import, consent, backup preview/export, corruption and cross-tab delete",flush=True)
                 custom(browser,url)
-                print("PASS: 3-stop route, pause, hidden tab, failed-leg retry/skip and safe reload",flush=True)
+                print("PASS: three custom routes, finite repeats, pause, hidden tab, failed-leg retry/skip and safe reload",flush=True)
                 offline(browser,url)
                 print("PASS: PWA manifest, atomic update, offline reload, optional sector cache and removal",flush=True)
                 browser.close()

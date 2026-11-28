@@ -225,8 +225,13 @@ def mobile(browser,url):
     assert eye(page)[2]>initial[2]+.2
     page.screenshot(path=OUTPUT / "pilot-mobile.png")
     # The synthesized swipe can suppress the next immediate mobile click.
-    page.wait_for_timeout(400)
-    page.locator("#flightExit").tap()
+    touch.detach()
+    page.wait_for_timeout(650)
+    exit_button=page.locator("#flightExit")
+    exit_button.tap()
+    # Chromium can suppress the first compatibility click after a CDP drag.
+    if exit_button.is_visible():
+        exit_button.tap()
     expect(page.locator("#viewMode")).to_have_text("MANUAL")
     assert not errors, errors
     page.close()
