@@ -10,7 +10,7 @@ permissions:
 jobs:
   chromium:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Verify asset hashes and event rules
@@ -20,6 +20,17 @@ jobs:
           python3 -m venv .qa-venv
           .qa-venv/bin/pip install playwright==1.62.0
           .qa-venv/bin/python -m playwright install --with-deps chromium
+      - name: Verify local Marie commands and approved adapter
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: .qa-venv/bin/python tests/command_pr13.py
+      - name: Upload Marie command captures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: command-pr13-captures
+          path: command-pr13-captures
+          if-no-files-found: ignore
       - name: Verify free flight and the expanded event catalog
         env:
           PYTHONDONTWRITEBYTECODE: '1'

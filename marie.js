@@ -78,37 +78,45 @@ const AsteriaMarie = (() => {
       report='차를 준비합니다. 함장님, 잠시 기다려 주십시오.';
     }
 
-    teaButton.onclick = () => {
-      if (transit || warning() || droneActive() || (tea && tea.phase !== 'ready')) return;
-      if (tea) {
+    function requestTea(receive) {
+      if (transit || warning() || droneActive()) return '현재 차 서비스를 사용할 수 없습니다.';
+      if (receive) {
+        if (tea?.phase !== 'ready') return '아직 수령할 차가 없습니다.';
         tea=null;
         teaAt=clock+teaInterval;
         report='차를 올려두었습니다. 물 온도 확인 완료.';
-      } else prepareTea();
+      } else {
+        if (tea) return tea.phase==='ready' ? '차가 준비되었습니다. 차 받기를 요청하십시오.' : '이미 차를 준비 중입니다.';
+        prepareTea();
+      }
       refresh();
-    };
-
-    droneButton.onclick = () => {
-      if (!signal() || drone || transit || warning()) return;
+      return report;
+    }
+    function launchDrone() {
+      if (!signal() || drone || transit || warning()) return '현재 파견할 수 있는 신호가 없습니다.';
       drone={phase:'flight',elapsed:0};
       report='탐사 드론 파견. 신호 방향과 반복 주기를 측정합니다.';
       refresh();
-    };
-
-    droneCancel.onclick = () => {
-      if (!droneActive()) return;
+      return report;
+    }
+    function recallDrone() {
+      if (!droneActive()) return '귀환시킬 드론이 없습니다.';
       drone=null;
       report='드론 조사를 취소했습니다. 드론을 귀환시켰습니다.';
       refresh();
-    };
-
-    followButton.onclick = () => {
-      follow=!follow;
-      if (!warning() && !transit && !tea && !signal()) {
-        report=follow ? '함교 이동 중 거리를 유지하며 동행합니다.' : '동행 종료. 함교 순찰을 재개합니다.';
-      }
+      return report;
+    }
+    function setFollow(enabled) {
+      follow=enabled;
+      const response=follow ? '함교 이동 중 거리를 유지하며 동행합니다.' : '동행 종료. 함교 순찰을 재개합니다.';
+      if (!warning() && !transit && !tea && !signal()) report=response;
       refresh();
-    };
+      return response;
+    }
+    teaButton.onclick = () => requestTea(tea?.phase==='ready');
+    droneButton.onclick = launchDrone;
+    droneCancel.onclick = recallDrone;
+    followButton.onclick = () => setFollow(!follow);
 
     el('marieStatus').onclick = () => {
       if (transit) report = route === null ? '워프 상태 점검 중입니다.' : name(route) + ' 항로를 추적 중입니다.';
@@ -139,6 +147,10 @@ const AsteriaMarie = (() => {
       open() {
         dialog.showModal();
         refresh();
+      },
+      requestTea,launchDrone,recallDrone,setFollow,
+      reportSnapshot() {
+        return {activity:brief.textContent,report,warning:warning() || null};
       },
       plan(index) {
         if (transit) return;

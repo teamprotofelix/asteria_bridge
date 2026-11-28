@@ -671,6 +671,7 @@ destinations.forEach(([, , description, , group = 'legacy'], index) => {
   optionsByGroup.get(group).append(new Option(description, index));
 });
 
+let commandEpoch=0;
 const marie = AsteriaMarie.create(destinations, reduced);
 const navigationMap = AsteriaNavigationMap.create(destinations, groups, {
   select(index) {
@@ -698,6 +699,68 @@ $('marieOpen').onclick = () => {
   drag = null;
   marie.open();
 };
+
+const commandCenter=AsteriaMarieConsole.create(destinations,{
+  snapshot() {
+    const [sectorId,sectorName]=destinations[dest];
+    return {sectorId,sectorName,ready,epoch:commandEpoch,busy:!!(loading||warp||flightTravel),
+      mode:warp?'워프':watch?'자동 관측':flight.state?'자유 조종':walking?'함교 이동':'순항',
+      eventName:event ? events[event.type].name : null,watch:!!watch,visited:navigationMap.visits(),
+      ...marie.reportSnapshot()};
+  },
+  execute({intent,sectorId,enabled}) {
+    const index=sectorId ? destinations.findIndex(([id])=>id===sectorId) : -1;
+    switch(intent) {
+      case 'plan_route':
+        $('destinationSelect').value=String(index);
+        $('destinationSelect').dispatchEvent(new Event('change'));
+        return destinations[index][1]+' 항로를 지정했습니다. 워프는 별도 명령과 승인이 필요합니다.';
+      case 'warp':
+        $('destinationSelect').value=String(index);
+        $('destinationSelect').dispatchEvent(new Event('change'));
+        void engage(index);
+        return destinations[index][1]+' 출항 준비를 시작합니다.';
+      case 'start_watch':
+        setCinema(true);
+        startWatch();
+        return '8개 구역 자동 관측을 시작했습니다. 종료할 때까지 순회합니다.';
+      case 'stop':
+        if (flightTravel && !warp) cancelFlightTravel();
+        else if (flightTravel) flightTravel=null;
+        if (assetRequest && !warp) assetRequest.abort();
+        if (watch) setCinema(false);
+        if (flight.state) {flight.assist('IDLE');flight.brake();}
+        stopRoute();
+        setAuto(false);
+        keys.clear();
+        neutralFlightInput();
+        return warp ? '이미 시작한 워프는 도착까지 계속합니다. 자동 관측과 후속 이동을 중지했습니다.'
+          : '자동 관측과 이동 보조를 중지했습니다.';
+      case 'stop_watch':
+        if (!watch) return '자동 관측이 진행되고 있지 않습니다.';
+        setCinema(false);
+        return warp ? '자동 관측을 종료했습니다. 현재 워프는 도착까지 진행합니다.' : '자동 관측을 종료했습니다.';
+      case 'prepare_tea': return marie.requestTea(false);
+      case 'receive_tea': return marie.requestTea(true);
+      case 'launch_drone': return marie.launchDrone();
+      case 'recall_drone': return marie.recallDrone();
+      case 'follow': return marie.setFollow(enabled);
+    }
+    return '함교에서 지원하지 않는 명령입니다.';
+  },
+});
+function openCommand(trigger) {
+  if (!ready) return;
+  keys.clear();
+  neutralFlightInput();
+  drag=null;
+  commandCenter.open(trigger);
+}
+$('marieCommand').onclick=()=>{
+  $('marieDialog').close();
+  openCommand($('marieOpen'));
+};
+$('watchCommand').onclick=()=>openCommand($('watchCommand'));
 
 setDest(0);
 let startupAttempt = 0;
@@ -1236,6 +1299,7 @@ for (const button of document.querySelectorAll('[data-flight-key]')) {
   };
 }
 function setTravelBusy(busy) {
+  commandEpoch++;
   navigationMap.setBusy(busy);
   $('warp').disabled = $('travel').disabled = $('destinationSelect').disabled = busy;
   $('qualitySelect').disabled = $('qualityRetry').disabled = busy;
@@ -1366,6 +1430,7 @@ function setEventHud(shield) {
 }
 
 function endEvent(returnFocus = true) {
+  commandEpoch++;
   const hadFocus = $('eventBanner').contains(document.activeElement);
   event = null;
   marie.event(null);
@@ -1387,6 +1452,7 @@ function startEvent(type, context = eventContext()) {
   }
   if (event) endEvent(false);
   event = next;
+  commandEpoch++;
   marie.event(type);
   const entry = events[type];
   $('eventName').textContent = entry.name;
@@ -1467,7 +1533,7 @@ $('watchNext').onclick = () => {
 const view=$('view');view.addEventListener('pointerdown',e=>{if(e.button!==0)return;setAuto(false);view.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,id:e.pointerId};view.setPointerCapture(e.pointerId);});view.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;turnView(-(e.clientX-drag.x)*.19,(e.clientY-drag.y)*.19);drag.x=e.clientX;drag.y=e.clientY;});for(let ev of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(ev,()=>drag=null);view.addEventListener('dblclick',reset);view.addEventListener('wheel',e=>{e.preventDefault();zoomBy(-Math.sign(e.deltaY)*.08);},{passive:false});
 const map={arrowup:'w',arrowdown:'s',arrowleft:'a',arrowright:'d'}, editable=el=>el&&['INPUT','SELECT','TEXTAREA'].includes(el.tagName);
 window.addEventListener('keydown', e => {
-  if ($('mapDialog').open || $('marieDialog').open || $('qualityDialog').open) return;
+  if ($('mapDialog').open || $('marieDialog').open || $('commandDialog').open || $('qualityDialog').open) return;
   if (e.key==='Escape' && flightTravel) {
     cancelFlightTravel();
     return;
@@ -1575,6 +1641,7 @@ advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();if (ready && !doc
   crewClockReset = false;
 }
 updateFlightHud();
+commandCenter.sync();
 renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);const displayYaw = walking || flight.state ? Math.atan2(cameraMatrix[6],cameraMatrix[8])/rad : yaw;
 const displayPitch = walking || flight.state ? Math.asin(clamp(cameraMatrix[7],-1,1))/rad : pitch;
 const displayRoll = walking || flight.state ? Math.atan2(cameraMatrix[1],cameraMatrix[4])/rad : roll;

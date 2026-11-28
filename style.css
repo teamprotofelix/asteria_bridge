@@ -466,3 +466,48 @@
   #flightPanel { top: 59px; left: 3%; max-width: 94%; padding: 5px; }
   .flight-actions button, .flight-actions select { font-size: 11px; padding: 4px; }
 }
+
+#commandDialog {
+  width: min(540px, calc(100vw - 16px));
+  max-width: none;
+  max-height: calc(100dvh - 16px);
+  padding: 12px;
+  overscroll-behavior: contain;
+}
+#commandDialog h2 { font-size: 17px; }
+#commandDialog p { margin: 6px 0; }
+#commandDialog p:empty { display: none; }
+#commandLog {
+  list-style: none;
+  padding: 6px;
+  margin: 7px 0 9px;
+  min-height: 80px;
+  max-height: min(30dvh, 220px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #081623;
+  border: 1px solid #36576b;
+  border-radius: 5px;
+}
+#commandLog li { display: grid; grid-template-columns: 2.5em 1fr; gap: 4px; padding: 4px; font-size: 13px; overflow-wrap: anywhere; }
+#commandLog li b { color: #91eddf; }
+#commandLog li[data-speaker="captain"] b { color: #ffd09b; }
+#commandDialog label, #commandDialog summary { display: block; font-size: 13px; padding: 4px 0; }
+#commandDialog .command-row { display: flex; align-items: stretch; gap: 6px; }
+#commandDialog input:not([type="checkbox"]) {
+  flex: 1; min-width: 0; width: 100%; min-height: 44px; padding: 6px 9px;
+  font-size: 16px; background: #091521; color: #e2f4fb;
+  border: 1px solid #577a90; border-radius: 4px;
+}
+#commandDialog button {
+  width: auto; min-height: 44px; margin: 0; padding: 4px 9px;
+  border: 1px solid #638495; border-radius: 4px; background: #18384a;
+}
+#commandApprove { color: #c0fff2; }
+#commandApproval, #commandSettings { margin-top: 8px; padding: 5px 7px; border: 1px solid #33566b; border-radius: 5px; }
+#commandSettings summary { cursor: pointer; }
+#commandDialog pre {
+  margin: 5px 0; padding: 5px;
+  max-height: 115px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  color: #b8dedf; background: #091522; font: 11px var(--mono);
+}
