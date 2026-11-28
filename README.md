@@ -1,11 +1,13 @@
-# ASTERIA II — Horizon Bridge v2.0
+# ASTERIA II — Living Starship
+
+현재 검토 버전은 **Living Starship v4.0.0-rc.1**입니다. 가상 항해 및 천체 관측 시뮬레이션입니다. 실제 천체 운동이나 관측 데이터를 재현하는 도구로 사용할 수 없습니다. [통합 검수 및 출시 판정](qa/PR15_REPORT.md)에서 시험 환경과 남은 검증을 확인할 수 있습니다.
 
 아스테리아-2 심우주 항해 시뮬레이션. 서버·API 키·CDN·npm 설치가 없는 정적 사이트입니다. 전후좌우 및 상하 360° 관측을 지원합니다. WebGL 3D 관측 구역에서는 천체 표면을 실시간으로 렌더링하고, 우주 시야에 함교 내부 WebP를 합성합니다. WebGL에서는 창틀, 갑판과 조종석을 깊이 검사를 적용한 3D 메시로 렌더링합니다. 항해 중에는 함교 중앙에서 조작하고, 함교 이동 모드에서는 실내를 둘러볼 수 있습니다.
 
 ## 시작하기
 
-- ZIP을 압축 해제하고 `index.html`을 브라우저에서 여세요. 모든 상대경로 에셋을 같이 유지하세요. 브라우저의 로컬 파일 접근 정책에 따라 정적 HTTP 호스팅이 필요할 수 있습니다.
-- GitHub Pages: 저장소 루트에 `index.html`, `app.js`, `sky-assets.js`, `sectors.js`, `space.js`, `flight.js`, `bridge-layout.js`, `marie-rig.js`, `marie-motion.js`, `marie.js`, `marie-command.js`, `marie-adapter.js`, `marie-console.js`, `bridge-room.js`, `events.js`, `navigation-map.js`, `bridge-audio.js`, `style.css`, `voyage-store.js`, `voyage-panel.js`, `watch-plan.js`, `manifest.webmanifest`, `sw.js`, `.nojekyll`, `assets/`를 업로드합니다. Settings → Pages → Deploy from a branch → main / (root) → Save.
+- ZIP을 푼 폴더에서 `python -m http.server 8000`을 실행하고 브라우저로 `http://localhost:8000/`을 여세요. `assets/`와 실행 파일의 상대 경로를 유지하세요.
+- GitHub Pages: 저장소 루트에 `index.html`, `app.js`, `sky-assets.js`, `sectors.js`, `space.js`, `flight.js`, `bridge-layout.js`, `marie-rig.js`, `marie-motion.js`, `marie.js`, `marie-command.js`, `marie-adapter.js`, `marie-console.js`, `bridge-room.js`, `events.js`, `navigation-map.js`, `bridge-audio.js`, `style.css`, `voyage-store.js`, `voyage-panel.js`, `watch-plan.js`, `manifest.webmanifest`, `sw.js`, `assets/`를 업로드합니다. Settings → Pages → Deploy from a branch → main / (root) → Save.
 - 별도 빌드 과정 없음. 일반 정적 호스트 또는 로컬 `python -m http.server 8000`으로도 실행할 수 있습니다.
 
 ## 조작법
@@ -138,3 +140,12 @@ HTTPS 또는 로컬 HTTP 지원 환경에서는 NEREID 기본 구역을 오프�
 - Compatibility는 기존 360° 파노라마를 표시합니다. GPU 오류 시에는 Canvas 모드로 전환됩니다. 품질 창에서 에셋을 다시 불러오거나 취소할 수 있습니다. 출항 전 에셋을 불러오는 중이라면 Esc로도 취소할 수 있습니다.
 
 에셋과 검증 절차는 [에셋 출처](ASSET_LICENSES.md) 및 [PR09 검증 보고서](qa/PR09_REPORT.md)에 정리했습니다.
+
+
+## v4 정적 패키지와 운영 점검
+
+`python scripts/package_release.py`로 ZIP, 파일별 해시 목록, ZIP의 SHA-256을 `dist/`에 만듭니다. 검토 PR의 Visual regression 실행에서 같은 산출물과 Chromium 캡처를 내려받을 수 있습니다. ZIP을 풀어 `python -m http.server 8000`으로 실행하십시오. root와 하위 경로 모두 상대 URL을 사용합니다. PWA는 HTTPS 또는 브라우저가 보안 컨텍스트로 인정하는 localhost에서 작동합니다.
+
+배포 승인 후 GitHub Pages에서 `main / (root)`와 기존 [운영 도메인](https://asteria-bridge.moip.ai.kr/)을 확인합니다. 새 브라우저 프로필과 이전 버전이 설치된 프로필에서 각각 최초 관측창, 지도 이동, 마리 명령, 항해 일지, 네레이드 오프라인 재실행을 검증합니다. 적용 대기 중인 PWA 업데이트는 안정 구역에서 승인합니다. 장애가 재현되면 마지막 정상 커밋을 기준으로 **revert PR**을 열고 승인 후 배포합니다. 사이트 데이터 삭제를 일괄 안내하지 말고, 배포 파일과 서비스 워커가 정상 버전인지 먼저 확인합니다.
+
+CSP는 같은 출처의 스크립트·서비스 워커를 요구합니다. 에셋 로딩에 필요한 이미지 Blob 및 인라인 스타일을 허용합니다. 사용자 승인 후 외부 마리 프록시를 사용하려면 HTTPS와 해당 사이트 출처를 허용하는 CORS 설정이 필요합니다. 기본 설정에서 외부 요청은 없습니다.

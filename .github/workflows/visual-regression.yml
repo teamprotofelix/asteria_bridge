@@ -10,7 +10,7 @@ permissions:
 jobs:
   chromium:
     runs-on: ubuntu-latest
-    timeout-minutes: 24
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Verify asset hashes and event rules
@@ -79,3 +79,20 @@ jobs:
         run: |
           .qa-venv/bin/python tests/browser_smoke.py
           .qa-venv/bin/python tests/quality_pr9.py
+      - name: Verify v4 integration, layouts and package
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          .qa-venv/bin/python tests/release_pr15.py
+          .qa-venv/bin/python scripts/package_release.py
+          .qa-venv/bin/python -m zipfile -e dist/ASTERIA_II_Living_Starship_v4.zip "${{ runner.temp }}/asteria-delivery"
+          .qa-venv/bin/python tests/release_pr15.py --archive-smoke --root "${{ runner.temp }}/asteria-delivery"
+      - name: Upload v4 release package and evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: asteria-v4-release-review
+          path: |
+            dist/
+            release-evidence/
+          if-no-files-found: ignore

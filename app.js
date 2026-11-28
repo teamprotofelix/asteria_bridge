@@ -7,11 +7,16 @@ for (const {group, id, name, description, code} of AsteriaSectors.additions) {
   destinations.push([id, name, description, code, group]);
 }
 
+function writeText(element, text) {
+  if (element.textContent !== text) element.textContent = text;
+}
+
 const events = AsteriaEvents.catalog;
 let eventOptionsKey = '';
 let wasInRing = false;
 const eventCooldown = new Map();
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches, keys=new Set();
+const cardinals = ['FWD', 'STBD', 'AFT', 'PORT'];
 let yaw=0,pitch=0,roll=0,zoom=1,focal=500,w=1,h=1,dpr=1,throttle=35,auto=false,cinema=false,room=true,dest=0,warp=null,loading=false,event=null,random=false,nextEvent=0,drag=null,last=performance.now(),elapsed=0,toastTimer,clockSec=-1;
 const wrap=a=>((a+180)%360+360)%360-180, clamp=(x,a,b)=>Math.max(a,Math.min(b,x)), rad=Math.PI/180;
 const soundscape = AsteriaAudio.create();
@@ -23,7 +28,7 @@ const flightStatusNames = {IDLE:'수동 조종',PLAN:'항로 계산',ALIGN:'기�
   WARP:'워프',ARRIVE:'도착',APPROACH:'접근 보조',ORBIT:'공전 보조',OBSERVE:'관측 거리 유지',
   DEPART:'이탈 보조',ABORT:'출항 취소',RECOVER:'현재 구역 유지'};
 const flightKeyNames = new Set(['w','a','s','d','q','e','i','k','j','l','u','o','shift','control',' ']);
-let watch = null, audioWarp = null, nextAudioUpdate = 0, nextRadarCue = 0;
+let watch = null, audioWarp = null, nextAudioUpdate = 0, nextRadarCue = 0, nextRadarDraw = 0;
 let hatchOpen = false, hatchSlide = 0, hatchOverride = null;
 let seat = null, standingPose = null, stepDistance = 0;
 let nightBridge = false, bridgeAlert = 0, bridgeWarp = 0;
@@ -273,8 +278,12 @@ function gpuLayer(canvas, alpha) {
 
   function draw(matrix, width, height, moving) {
     if (!texture) return;
-    const limit = bridgeMesh ? (moving ? 960 : 1720) : qualityMode === 'auto' ? renderLimit
-      : AsteriaSkyAssets.caps[activeQuality?.tier] ?? 1080;
+    let limit = qualityMode === 'auto' ? renderLimit : AsteriaSkyAssets.caps[activeQuality?.tier] ?? 1080;
+    if (bridgeMesh) {
+      limit = moving ? 960 : 1720;
+      // The room and sky share a frame budget. Preserve legibility when Auto is at its floor.
+      if (qualityMode === 'auto' && !reduced) limit = Math.min(limit, Math.max(640, renderLimit));
+    }
     const pixelRatio = !alpha || bridgeMesh ? Math.min(dpr, limit / Math.max(width, height, 1)) : dpr;
     const dw = Math.max(1, Math.round(width * pixelRatio));
     const dh = Math.max(1, Math.round(height * pixelRatio));
@@ -349,7 +358,7 @@ function resetQualitySamples() {
   qualityFrames = smoothWindows = 0;
 }
 function adaptQuality(now, frameMs) {
-  if (document.hidden || frameMs > 250) {
+  if (document.hidden || frameMs > 1000) {
     resetQualitySamples();
     return;
   }
@@ -1672,7 +1681,7 @@ $('watchPause').onclick=()=>{
 const view=$('view');view.addEventListener('pointerdown',e=>{if(e.button!==0)return;setAuto(false);view.focus({preventScroll:true});drag={x:e.clientX,y:e.clientY,id:e.pointerId};view.setPointerCapture(e.pointerId);});view.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;turnView(-(e.clientX-drag.x)*.19,(e.clientY-drag.y)*.19);drag.x=e.clientX;drag.y=e.clientY;});for(let ev of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(ev,()=>drag=null);view.addEventListener('dblclick',reset);view.addEventListener('wheel',e=>{e.preventDefault();zoomBy(-Math.sign(e.deltaY)*.08);},{passive:false});
 const map={arrowup:'w',arrowdown:'s',arrowleft:'a',arrowright:'d'}, editable=el=>el&&['INPUT','SELECT','TEXTAREA'].includes(el.tagName);
 window.addEventListener('keydown', e => {
-  if ($('mapDialog').open || $('marieDialog').open || $('commandDialog').open || $('qualityDialog').open || $('voyageDialog').open) return;
+  if (document.querySelector('dialog[open]')) return;
   if (e.key==='Escape' && flightTravel) {
     cancelFlightTravel();
     return;
@@ -1688,7 +1697,7 @@ window.addEventListener('keydown', e => {
     keys.clear();
     return;
   }
-  if ($('helpDialog').open || editable(document.activeElement) || e.metaKey || e.altKey) return;
+  if (editable(document.activeElement) || e.metaKey || e.altKey) return;
   const k = map[e.key.toLowerCase()] || e.key.toLowerCase();
   if (k==='p' && !e.ctrlKey && !e.repeat) {
     e.preventDefault();
@@ -1781,10 +1790,31 @@ advanceTour(dt);updateCamera();advanceRoute(dt);updateEvents();if (ready && !doc
 }
 updateFlightHud();
 commandCenter.sync();
-renderCamera(now,frameMs);effectFrame(dt,wa);drawRadar(elapsed);const displayYaw = walking || flight.state ? Math.atan2(cameraMatrix[6],cameraMatrix[8])/rad : yaw;
-const displayPitch = walking || flight.state ? Math.asin(clamp(cameraMatrix[7],-1,1))/rad : pitch;
-const displayRoll = walking || flight.state ? Math.atan2(cameraMatrix[1],cameraMatrix[4])/rad : roll;
-let bearing=(displayYaw+360)%360;$('heading').textContent=bearing.toFixed(1).padStart(5,'0')+'°';$('pitchRead').textContent=(displayPitch>=0?'+':'')+displayPitch.toFixed(1)+'°';$('rollRead').textContent=(displayRoll>=0?'+':'')+displayRoll.toFixed(1)+'°';$('compassText').textContent=['FWD','STBD','AFT','PORT'][Math.round(bearing/90)%4]+' · '+Math.round(bearing).toString().padStart(3,'0')+'°';let sec=Math.floor(Date.now()/1000);if(sec!==clockSec){clockSec=sec;$('clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}updateQualityHud(now,frameMs);requestAnimationFrame(frame);}
+renderCamera(now, frameMs);
+effectFrame(dt, wa);
+if (!cinema && now >= nextRadarDraw) {
+  drawRadar(elapsed);
+  nextRadarDraw = now + 32;
+}
+updateViewHud();
+updateQualityHud(now, frameMs);
+requestAnimationFrame(frame);
+}
+function updateViewHud() {
+  const displayYaw = walking || flight.state ? Math.atan2(cameraMatrix[6],cameraMatrix[8])/rad : yaw;
+  const displayPitch = walking || flight.state ? Math.asin(clamp(cameraMatrix[7], -1, 1))/rad : pitch;
+  const displayRoll = walking || flight.state ? Math.atan2(cameraMatrix[1], cameraMatrix[4])/rad : roll;
+  const bearing = (displayYaw + 360) % 360;
+  writeText($('heading'), bearing.toFixed(1).padStart(5, '0') + '°');
+  writeText($('pitchRead'), (displayPitch >= 0 ? '+' : '') + displayPitch.toFixed(1) + '°');
+  writeText($('rollRead'), (displayRoll >= 0 ? '+' : '') + displayRoll.toFixed(1) + '°');
+  writeText($('compassText'), cardinals[Math.round(bearing/90)%4] + ' · ' + Math.round(bearing).toString().padStart(3, '0') + '°');
+  const sec = Math.floor(Date.now()/1000);
+  if (sec !== clockSec) {
+    clockSec = sec;
+    $('clock').textContent = new Date().toISOString().slice(11, 19) + ' UTC';
+  }
+}
 function updateQualityHud(now, frameMs) {
   if (frameMs > 0 && frameMs < 200 && !document.hidden) {
     displayFps += (1000 / frameMs - displayFps)*.06;
