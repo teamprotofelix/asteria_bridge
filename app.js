@@ -715,8 +715,7 @@ $('marieOpen').onclick = () => {
 };
 
 const commandCenter=AsteriaMarieConsole.create(destinations,{
-  initialPreference:voyage.data.mariePreferences?.sectorId,
-  onPreference:id=>{void voyage.noteMarie(id);},
+  purgeVoyageMemory:voyage.purgeMarieCopy,
   snapshot() {
     const [sectorId,sectorName]=destinations[dest];
     return {sectorId,sectorName,ready,epoch:commandEpoch,busy:!!(loading||warp||flightTravel),
@@ -778,11 +777,6 @@ $('marieCommand').onclick=()=>{
 };
 $('watchCommand').onclick=()=>openCommand($('watchCommand'));
 
-let restoredMarie=voyage.data.mariePreferences?.sectorId ?? null;
-voyage.subscribe(()=>{
-  const next=voyage.data.mariePreferences?.sectorId ?? null;
-  if (next!==restoredMarie) {restoredMarie=next;commandCenter.restorePreference(next);}
-});
 const persistence=AsteriaVoyagePanel.create(destinations,events,voyage,{
   busy:()=>!ready || !!(loading || warp || watch || flightTravel),
   start(plan) {

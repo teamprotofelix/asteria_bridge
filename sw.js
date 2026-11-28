@@ -1,7 +1,7 @@
 'use strict';
 
 // Update this version whenever the shell changes. All caches are scoped to this deployment path.
-const version='14.1';
+const version='14.2';
 const scope=new URL(self.registration.scope);
 const prefix='asteria:'+scope.pathname+':';
 const shellName=prefix+'shell:'+version;

@@ -104,3 +104,35 @@ test('custom routes run in approved order and once/indefinite presets obey repea
   assert.equal(legacy.remaining,45);
   assert.equal(Watch.candidate(legacy).sectorId,'selene');
 });
+
+test('old Marie copies are scrubbed at startup and excluded from merge, replacement and export',async()=>{
+  const f=fixture(), baseline=f.tab();
+  await baseline.record('arrival','nereid',1);
+  await baseline.consent(true);
+  const legacy={...baseline.snapshot(),visitedSectorIds:['nereid','gaia'],mariePreferences:{sectorId:'gaia'}};
+  f.values.set(Voyage.key,raw(legacy));
+  const v=f.tab();
+  assert.equal(v.data.mariePreferences,null);
+  assert.ok(await v.purgeMarieCopy());
+  assert.equal(JSON.parse(f.values.get(Voyage.key)).mariePreferences,null);
+  assert.deepEqual(v.data.visitedSectorIds,['nereid','gaia']);
+  assert.equal(v.decode(raw(legacy)).mariePreferences,null);
+  for (const mode of ['merge','replace']) {
+    assert.ok(await v.restore(legacy,mode));
+    assert.equal(v.snapshot().mariePreferences,null);
+    assert.equal(JSON.parse(f.values.get(Voyage.key)).mariePreferences,null);
+  }
+});
+
+test('failed cleanup keeps the old voyage intact without exposing its copy',async()=>{
+  const f=fixture(), baseline=f.tab();
+  await baseline.consent(true);
+  const value=raw({...baseline.snapshot(),mariePreferences:{sectorId:'gaia'}});
+  f.values.set(Voyage.key,value);
+  f.fail();
+  const v=f.tab();
+  assert.equal(await v.purgeMarieCopy(),false);
+  assert.match(v.error,/한도/);
+  assert.equal(f.values.get(Voyage.key),value);
+  assert.equal(v.snapshot().mariePreferences,null);
+});

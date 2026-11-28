@@ -6,6 +6,7 @@ from pathlib import Path
 
 from browser_smoke import ROOT, QuietHandler, Thread, ThreadingHTTPServer, expect, partial, sync_playwright
 from flight_pr12 import CLOCK, advance
+from command_pr13 import open_chat, send
 
 OUTPUT = Path(os.environ.get("VOYAGE_CAPTURE_DIR", "voyage-pr14-captures"))
 KEY = "asteria.voyage.v2"
@@ -13,7 +14,7 @@ LEGACY = "asteria.visited-sectors.v1"
 
 
 class WorkerVersions(QuietHandler):
-    version = "14.1"
+    version = "14.2"
     disconnected = False
 
     def send_head(self):
@@ -21,7 +22,7 @@ class WorkerVersions(QuietHandler):
             self.send_error(503)
             return None
         if self.path.split("?")[0].endswith("/sw.js"):
-            source = (ROOT / "sw.js").read_text().replace("version='14.1'", "version='" + self.version + "'")
+            source = (ROOT / "sw.js").read_text().replace("version='14.2'", "version='" + self.version + "'")
             raw = source.encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/javascript")
@@ -94,6 +95,118 @@ def storage(browser, url):
     assert read_store(another) is None
     assert page.evaluate("(key)=>JSON.parse(localStorage.getItem(key))",LEGACY)==["gaia"]
     assert not errors,errors
+    context.close()
+
+
+MARIE_KEY = "asteria.marie.preferences.v1"
+
+
+def memory_settings(page):
+    open_chat(page)
+    summary=page.locator("#commandSettings summary")
+    if page.locator("#commandSettings").get_attribute("open") is None:
+        summary.click()
+
+
+def set_voyage_consent(page):
+    open_voyage(page)
+    page.locator("#voyageConsent").check()
+    expect(page.locator("#voyageStorageStatus")).to_have_text("이 브라우저에 저장 중")
+    page.click("#voyageClose")
+
+
+def read_marie(page):
+    return page.evaluate("(key)=>JSON.parse(localStorage.getItem(key))",MARIE_KEY)
+
+
+def memory_consent(browser,url):
+    for voyage_on,marie_on in [(False,False),(True,False),(False,True),(True,True)]:
+        context=browser.new_context(service_workers="block",reduced_motion="reduce",viewport={"width":800,"height":650})
+        page=context.new_page()
+        ready(page,url)
+        if voyage_on:
+            set_voyage_consent(page)
+        memory_settings(page)
+        if marie_on:
+            page.locator("#commandRemember").check()
+            expect(page.locator("#commandFeedback")).to_contain_text("저장을 켰습니다")
+        send(page,"마리, 선호 구역 셀레네","브라우저에 저장" if marie_on else "이번 세션")
+        expect(page.locator("#commandMemory")).to_contain_text("SELENE")
+        document=read_store(page)
+        assert bool(document)==voyage_on
+        assert not document or document["mariePreferences"] is None, document
+        assert bool(read_marie(page))==marie_on
+        page.reload()
+        expect(page.locator("#marieOpen")).to_be_enabled(timeout=25000)
+        memory_settings(page)
+        expect(page.locator("#commandMemory")).to_contain_text("SELENE" if marie_on else "미설정")
+        context.close()
+
+    context=browser.new_context(service_workers="block",reduced_motion="reduce",viewport={"width":900,"height":700})
+    first=context.new_page()
+    ready(first,url)
+    set_voyage_consent(first)
+    legacy=read_store(first)
+    legacy["mariePreferences"]={"sectorId":"halogate"}
+    # A record from the earlier PR build must be ignored even before cleanup completes.
+    first.evaluate("([key,value])=>localStorage.setItem(key,JSON.stringify(value))",[KEY,legacy])
+    first.reload()
+    expect(first.locator("#marieOpen")).to_be_enabled(timeout=25000)
+    first.wait_for_function("(key)=>JSON.parse(localStorage.getItem(key)).mariePreferences===null",arg=KEY)
+    memory_settings(first)
+    expect(first.locator("#commandMemory")).to_contain_text("미설정")
+    first.locator("#commandRemember").check()
+    expect(first.locator("#commandFeedback")).to_contain_text("저장을 켰습니다")
+    send(first,"선호 구역 셀레네","브라우저에 저장")
+    second=context.new_page()
+    ready(second,url)
+    memory_settings(second)
+    expect(second.locator("#commandMemory")).to_contain_text("SELENE")
+    first.locator("#commandRemember").uncheck()
+    expect(first.locator("#commandFeedback")).to_contain_text("저장을 껐습니다")
+    expect(first.locator("#commandMemory")).to_contain_text("현재 세션만")
+    expect(second.locator("#commandMemory")).to_contain_text("미설정")
+    expect(second.locator("#commandRemember")).not_to_be_checked()
+    assert read_marie(first) is None and read_store(first)["mariePreferences"] is None
+
+    first.click("#commandClose")
+    open_voyage(first)
+    for mode in ["merge","replace"]:
+        first.locator("#voyageFile").set_input_files({"name":"legacy-v2.json","mimeType":"application/json",
+            "buffer":json.dumps(legacy).encode()})
+        expect(first.locator("#voyagePreview")).to_contain_text("방문")
+        first.select_option("#voyageMerge",mode)
+        first.click("#voyageApply")
+        expect(first.locator("#voyageFeedback")).to_contain_text("백업을 반영")
+        assert read_store(first)["mariePreferences"] is None
+        assert read_marie(first) is None
+    first.click("#voyageClose")
+    memory_settings(first)
+    first.locator("#commandRemember").check()
+    expect(first.locator("#commandFeedback")).to_contain_text("저장을 켰습니다")
+    send(first,"선호 구역 가이아","브라우저에 저장")
+    first.evaluate("""([key,value])=>{
+        localStorage.setItem(key,JSON.stringify(value));
+        const remove=Storage.prototype.removeItem;
+        Storage.prototype.removeItem=function(key){
+            if(key==='asteria.marie.preferences.v1') throw new DOMException('blocked','SecurityError');
+            return remove.call(this,key);
+        };
+        window.restoreStorageRemoval=()=>{Storage.prototype.removeItem=remove;};
+    }""",[KEY,legacy])
+    first.click("#commandClear")
+    expect(first.locator("#commandFeedback")).to_contain_text("삭제하지 못했습니다")
+    assert read_marie(first)["sectorId"]=="gaia"
+    assert read_store(first)["mariePreferences"] is None
+    first.evaluate("restoreStorageRemoval()")
+    first.click("#commandClear")
+    expect(first.locator("#commandFeedback")).to_contain_text("저장 동의를 삭제했습니다")
+    expect(second.locator("#commandMemory")).to_contain_text("미설정")
+    assert read_marie(first) is None and read_store(first)["mariePreferences"] is None
+    first.reload()
+    expect(first.locator("#marieOpen")).to_be_enabled(timeout=25000)
+    memory_settings(first)
+    expect(first.locator("#commandMemory")).to_contain_text("미설정")
     context.close()
 
 
@@ -188,7 +301,7 @@ def offline(browser,url):
     assert not manifest["errors"],manifest["errors"]
     assert page.evaluate("caches.keys().then(keys=>keys.every(name=>!name.includes(':pack:')))")
 
-    WorkerVersions.version="14.2"
+    WorkerVersions.version="14.3"
     page.evaluate("navigator.serviceWorker.getRegistration().then(reg=>reg.update())")
     page.wait_for_function("navigator.serviceWorker.getRegistration().then(reg=>!!reg.waiting)",timeout=25000)
     page.click("#warp")
@@ -199,7 +312,7 @@ def offline(browser,url):
     with page.expect_navigation():
         page.click("#voyageApplyUpdate")
     expect(page.locator("#marieOpen")).to_be_enabled(timeout=22000)
-    page.wait_for_function("caches.keys().then(keys=>keys.some(name=>name.endsWith('shell:14.2')) && keys.every(name=>!name.endsWith('shell:14.1')))")
+    page.wait_for_function("caches.keys().then(keys=>keys.some(name=>name.endsWith('shell:14.3')) && keys.every(name=>!name.endsWith('shell:14.2')))")
     open_voyage(page,"offline")
     page.select_option("#voyageOfflineSector","gaia")
     page.click("#voyageOfflineAdd")
@@ -242,6 +355,8 @@ def main():
                 url=f"http://127.0.0.1:{server.server_port}/{ROOT.name}/"
                 storage(browser,url)
                 print("PASS: legacy import, consent, backup preview/export, corruption and cross-tab delete",flush=True)
+                memory_consent(browser,url)
+                print("PASS: four consent combinations, reload, revocation, backup isolation and cross-tab sync",flush=True)
                 custom(browser,url)
                 print("PASS: three custom routes, finite repeats, pause, hidden tab, failed-leg retry/skip and safe reload",flush=True)
                 offline(browser,url)

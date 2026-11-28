@@ -3,7 +3,6 @@
 const AsteriaVoyage = (() => {
   const key='asteria.voyage.v2';
   const legacyKey='asteria.visited-sectors.v1';
-  const marieKey='asteria.marie.preferences.v1';
   const maxBytes=256*1024;
   const maxLog=300;
   const kinds=['departure','arrival','observation','discovery','drone','tea','event'];
@@ -24,13 +23,19 @@ const AsteriaVoyage = (() => {
       && ['mute','inherit'].includes(value.audio);
   }
 
-  function decode(raw,sectors,eventIds) {
+  function parseBackup(raw,sectors,eventIds) {
     if (typeof raw!=='string' || new TextEncoder().encode(raw).length>maxBytes) throw Error('저장 파일 크기 한도를 초과했습니다.');
     const data=JSON.parse(raw);
     if (exact(data,['schemaVersion','visitedSectorIds']) && data.schemaVersion===1) {
       return validate({...empty(),visitedSectorIds:data.visitedSectorIds},sectors,eventIds);
     }
     return validate(data,sectors,eventIds);
+  }
+
+  // Accept the old field for compatibility, but never import or re-export its value.
+  const withoutMarie=data=>data.mariePreferences===null ? data : {...data,mariePreferences:null};
+  function decode(raw,sectors,eventIds) {
+    return withoutMarie(parseBackup(raw,sectors,eventIds));
   }
 
   function validate(data,sectors,eventIds) {
@@ -66,7 +71,6 @@ const AsteriaVoyage = (() => {
       lastSafeSector:incoming.lastSafeSector ?? old.lastSafeSector,
       safeFlightState:incoming.lastSafeSector ? incoming.safeFlightState : old.safeFlightState,
       approvedRoute:incoming.approvedRoute ?? old.approvedRoute,
-      mariePreferences:incoming.mariePreferences ?? old.mariePreferences,
       discoveryLog:[...log.values()].sort((a,b)=>a.time-b.time || a.id.localeCompare(b.id)).slice(-maxLog)};
   }
 
@@ -75,11 +79,13 @@ const AsteriaVoyage = (() => {
     const listeners=new Set();
     function read() {
       const raw=storage.getItem(key);
-      return raw ? decode(raw,sectors,eventIds) : null;
+      return raw ? parseBackup(raw,sectors,eventIds) : null;
     }
+    let needsCleanup=false;
     try {
       const stored=read();
-      if (stored?.preferences.persist) data=stored;
+      if (stored?.preferences.persist) data=withoutMarie(stored);
+      needsCleanup=!!stored?.mariePreferences;
     } catch {error='저장된 항해 데이터에 접근할 수 없습니다. 세션 모드입니다.';}
     function notify() {for (const fn of listeners) fn();}
     function enqueue(operation) {
@@ -102,13 +108,26 @@ const AsteriaVoyage = (() => {
       return task;
     }
     function write(next,previous) {
-      const committed={...next,updatedAt:now(),revision:(previous?.revision ?? 0)+1};
+      const committed={...withoutMarie(next),updatedAt:now(),revision:(previous?.revision ?? 0)+1};
       validate(committed,sectors,eventIds);
       const raw=JSON.stringify(committed);
       if (new TextEncoder().encode(raw).length>maxBytes) throw new DOMException('Voyage size','QuotaExceededError');
       storage.setItem(key,raw);
       data=committed;
     }
+    function purgeMarieCopy() {
+      return enqueue(()=>{
+        const latest=read();
+        if (latest?.mariePreferences) {
+          const session=data;
+          write(withoutMarie(latest),latest);
+          if (!latest.preferences.persist) data=session;
+        }
+        return true;
+      });
+    }
+    if (needsCleanup) void purgeMarieCopy();
+
     function update(change) {
       if (!data.preferences.persist) {
         data=change(data);
@@ -157,7 +176,7 @@ const AsteriaVoyage = (() => {
         if (!['merge','replace'].includes(mode)) return Promise.resolve(false);
         return update(current=>{
           const next=mode==='merge' ? combine(current,incoming) : structuredClone(incoming);
-          return {...next,preferences:current.preferences};
+          return {...withoutMarie(next),preferences:current.preferences};
         });
       },
       consent(enabled) {
@@ -179,18 +198,16 @@ const AsteriaVoyage = (() => {
           return true;
         });
       },
-      noteMarie(value) {
-        if (value!==null && !sectors.has(value)) return Promise.resolve(false);
-        return update(d=>({...d,mariePreferences:value ? {sectorId:value} : null}));
-      },
+      purgeMarieCopy,
       reconcile(changedKey) {
         if (changedKey!==key && changedKey!==null) return;
         void tail.then(()=>{
           if (pending) return;
           try {
             const latest=read();
-            if (latest?.preferences.persist) data=latest;
+            if (latest?.preferences.persist) data=withoutMarie(latest);
             else if (data.preferences.persist) data=empty();
+            if (latest?.mariePreferences) void purgeMarieCopy();
             notify();
           } catch {error='다른 탭의 저장을 읽을 수 없습니다.';notify();}
         });
@@ -198,6 +215,6 @@ const AsteriaVoyage = (() => {
     };
   }
 
-  return {create,decode,route,key,legacyKey,marieKey,maxBytes,kinds};
+  return {create,decode,route,key,legacyKey,maxBytes,kinds};
 })();
 if (typeof module==='object' && module.exports) module.exports=AsteriaVoyage;
